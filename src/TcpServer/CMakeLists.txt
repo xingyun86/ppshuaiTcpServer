@@ -7,3 +7,4 @@ project ("TcpServer")
 
 # Include sub-projects.
 add_subdirectory ("TcpServer")
+add_subdirectory ("TcpClient")

@@ -1,10 +1,9 @@
-﻿// TcpServer.h : Include file for standard system include files,
+﻿// TcpClient.h : Include file for standard system include files,
 // or project specific include files.
 
 #pragma once
 
 #include <iostream>
-#include <unordered_map>
 #include <mutex>
 #include <sstream>
 
@@ -14,8 +13,8 @@
 #define SocketFdtype SOCKET
 #else
 #endif
-class TcpServer {
-    class ClientData {
+class TcpClient {
+    class ServerData {
     public:
         std::string ip;
         uint16_t port;
@@ -23,18 +22,17 @@ class TcpServer {
         std::shared_ptr<std::mutex> locker = std::make_shared<std::mutex>();
         time_t hbtime = 0;
     public:
-        ClientData(const std::string& ip, uint16_t port):ip(ip), port(port) {}
+        ServerData(const std::string& ip, uint16_t port):ip(ip), port(port) {}
     };
-    std::unordered_map<SocketFdtype, ClientData> clientList;
-
+   std::shared_ptr<ServerData> sd=nullptr;
     int HeartBeat(SocketFdtype sock)
     {
         if (ReachHeartBeatTime(sock))
         {
             std::string message = "heart beat come!\n";
             send(sock, (const char*)message.data(), message.size(), 0);
-            clientList.at(sock).hbtime = time(nullptr);
-            printf("%lld\n", clientList.at(sock).hbtime);
+            sd->hbtime = time(nullptr);
+            printf("%lld\n", sd->hbtime);
         }
         return 0;
     }
@@ -52,15 +50,15 @@ class TcpServer {
             return -1;
         }
         printf("收到客户端<Socket=%d> 数据长度：%d(%.*s)\n", sock, recvLen, recvLen, szRecv);
-        clientList.at(sock).locker->lock();
-        clientList.at(sock).ss.write(szRecv, recvLen);
-        cmd.assign(clientList.at(sock).ss.str());
+        sd->locker->lock();
+        sd->ss.write(szRecv, recvLen);
+        cmd.assign(sd->ss.str());
         if (*cmd.rbegin() == '\n')
         {
-            clientList.at(sock).ss.clear();
-            clientList.at(sock).ss.str("");
+            sd->ss.clear();
+            sd->ss.str("");
         }
-        clientList.at(sock).locker->unlock();
+        sd->locker->unlock();
         if (cmd.compare("quit\r\n") == 0)
         {
             printf("客户端<Socket=%d>已主动退出，任务结束...\n", sock);
@@ -116,7 +114,7 @@ public:
     bool ReachHeartBeatTime(SocketFdtype sock)
     {
         const static int TIME_HEART_BEAT = 10;
-        return ((time(nullptr) - clientList.at(sock).hbtime) >= TIME_HEART_BEAT);
+        return ((time(nullptr) -  sd->hbtime) >= TIME_HEART_BEAT);
     }
     int Start(const std::string& host, uint16_t port = 18001)
     {
@@ -149,52 +147,40 @@ public:
          //----------------------
         // Create a SOCKET for listening for
         // incoming connection requests.
-        SOCKET listenSocket = INVALID_SOCKET;
-        listenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
-        if (listenSocket == INVALID_SOCKET) {
+        SOCKET clientSocket = INVALID_SOCKET;
+        clientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
+        if (clientSocket == INVALID_SOCKET) {
             printf("Error at socket(): %ld\n", WSAGetLastError());
             WSACleanup();
             return 1;
         }
         u_long nOptVal = 1;
         //ioctlsocket(listenSocket, FIONBIO, &nOptVal);
-        setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR, (const char *)&nOptVal, sizeof(nOptVal));
+        setsockopt(clientSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&nOptVal, sizeof(nOptVal));
 
         //----------------------
-        // The sockaddr_in structure specifies the address family,
-        // IP address, and port for the socket that is being bound.
+        // Listen for incoming connection requests.
+        // on the created socket        
         sockaddr_in serverSockAddr = { 0 };
         serverSockAddr.sin_family = AF_INET;
         serverSockAddr.sin_addr.s_addr = inet_addr(host.c_str());
         //serverSockAddr.sin_addr.s_addr = INADDR_ANY;
         serverSockAddr.sin_port = htons(port);
 
-        if (bind(listenSocket, (const sockaddr *)&serverSockAddr, sizeof(serverSockAddr)) == SOCKET_ERROR) {
-            printf("bind() failed.绑定网络端口失败(%d)\n", WSAGetLastError());
-            closesocket(INVALID_SOCKET);
+        if (connect(clientSocket, (sockaddr*)&serverSockAddr, sizeof(sockaddr_in)) == SOCKET_ERROR) {
+            printf("错误，连接服务器失败...\n");
+            closesocket(clientSocket);
             WSACleanup();
             return 1;
         }
         else
         {
-            printf("绑定网络端口成功...\n");
+            printf("连接服务器成功...\n");
         }
 
-        //----------------------
-        // Listen for incoming connection requests.
-        // on the created socket
-        if (listen(listenSocket, 5) == SOCKET_ERROR) {
-            printf("错误，监听网络端口失败...\n");
-            closesocket(listenSocket);
-            WSACleanup();
-            return 1;
-        }
-        else
-        {
-            printf("监听网络端口成功...\n");
-        }
+        printf("客户端连接服务器成功...\n");
 
-        printf("等待客户端连接...\n");
+        sd = std::make_shared<ServerData>(host, port);
 
         while (true)
         {
@@ -209,21 +195,16 @@ public:
             FD_ZERO(&exceptfds);
 
             // 将描述符(socket)加入集合
-            FD_SET(listenSocket, &readfds);
-            FD_SET(listenSocket, &writefds);
-            FD_SET(listenSocket, &exceptfds);
-
-            for (auto& it : clientList)
-            {
-                FD_SET(it.first, &readfds);
-            }
+            FD_SET(clientSocket, &readfds);
+            FD_SET(clientSocket, &writefds);
+            FD_SET(clientSocket, &exceptfds);
 
             // 设置超时时间 select 非阻塞
             timeval timeout = { 1, 0 };
 
             // nfds是一个整数值，是指fd_set集合中所有描述符(socket)的范围，而不是数量
             // 即是所有文件描述符最大值+1 在Windows中这个参数可以写0
-            int ret = select((int)listenSocket + 1, &readfds, &writefds, &exceptfds, &timeout);
+            int ret = select((int)clientSocket + 1, &readfds, &writefds, &exceptfds, &timeout);
             if (ret < 0)
             {
                 printf("select任务结束,called failed:%d!\n", WSAGetLastError());
@@ -232,72 +213,26 @@ public:
 
             // 是否有数据可读
             // 判断描述符(socket)是否在集合中
-            if (FD_ISSET(listenSocket, &readfds))
+            if (FD_ISSET(clientSocket, &readfds))
             {
-                FD_CLR(listenSocket, &readfds);
-
-                // Create a SOCKET for accepting incoming requests.
-                // 4. accept 等待接受客户端连接
-                sockaddr_in clientSockAddr = { 0 };
-                int nclientSockAddrLen = sizeof(sockaddr_in);
-                SocketFdtype clientSocket = INVALID_SOCKET;
-                clientSocket = accept(listenSocket, (sockaddr*)&clientSockAddr, &nclientSockAddrLen);
-                if (INVALID_SOCKET == clientSocket) {
-                    printf("accept() failed: %d,接收到无效客户端Socket\n", WSAGetLastError());
-                    return 1;
-                }
-                else
+                FD_CLR(clientSocket, &readfds);
+                if (Process(clientSocket) == (-1))
                 {
-                    // 有新的客户端加入，向之前的所有客户端群发消息
-                    for (auto& it : clientList)
-                    {
-                        std::string message = "hello";
-                        send(it.first, (const char*)message.data(), message.size(), 0);
-                    }
-
-                    clientList.emplace(clientSocket, ClientData(inet_ntoa(clientSockAddr.sin_addr), ntohs(clientSockAddr.sin_port)));
-                    HeartBeat(clientSocket);
-                    // 客户端连接成功，则显示客户端连接的IP地址和端口号
-                    printf("新客户端<Sokcet=%d>加入,Ip地址：%s,端口号：%d\n",
-                        clientSocket,
-                        clientList.at(clientSocket).ip.c_str(),
-                        clientList.at(clientSocket).port);
-                    /*std::string message = "hello\n";
-                    send(clientSocket, (const char*)message.data(), message.size(), 0);*/
+                    break;
                 }
             }
 
-            for (int i = 0; i < (int)readfds.fd_count; i++)
-            {
-                if ((readfds.fd_array[i] != listenSocket) 
-                    && (Process(readfds.fd_array[i]) == (-1)))
-                {
-                    auto itFind = clientList.find(readfds.fd_array[i]);
-                    if (itFind != clientList.end())
-                    {
-                        clientList.erase(itFind);
-                    }
-                }
-            }
+            //HeartBeat(clientSocket);
 
-            for (auto& it : clientList)
-            {
-                HeartBeat(it.first);
-            }
             //printf("空闲时间处理其他业务...\n");
         }
 
-        for (auto& it : clientList)
-        {
-            closesocket(it.first);
-        }
-
         // 8.关闭套接字
-        closesocket(listenSocket);
+        closesocket(clientSocket);
         // 9.清除Windows Socket环境
         WSACleanup();
 
-        printf("服务端已退出，任务结束\n");
+        printf("客户端已退出，任务结束\n");
 
         getchar();
 
@@ -305,8 +240,8 @@ public:
     }
 
 public:
-    static TcpServer* Inst() {
-        static TcpServer tcpServerInstance;
-        return &tcpServerInstance;
+    static TcpClient* Inst() {
+        static TcpClient tcpClientInstance;
+        return &tcpClientInstance;
     }
 };

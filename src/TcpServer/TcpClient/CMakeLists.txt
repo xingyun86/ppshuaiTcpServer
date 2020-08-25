@@ -3,7 +3,7 @@
 #
 cmake_minimum_required (VERSION 3.8)
 
-set (project_name TcpServer)
+set (project_name TcpClient)
 project(${project_name})
 
 include_directories(
@@ -20,7 +20,7 @@ set (MSVC_LIBS )
 ENDIF(MSVC)
 
 # Add source to this project's executable.
-add_executable (${project_name} "TcpServer.cpp" "TcpServer.h")
+add_executable (${project_name} "TcpClient.cpp" "TcpClient.h")
 
 target_link_libraries(${project_name} 
 	 PRIVATE ${MSVC_LIBS}
