@@ -42,10 +42,10 @@ public:
         return &taskHandlerInstance;
     }
 };
-typedef struct AHPHeader {
+typedef struct PacketHeader {
     uint16_t cmd;
     uint32_t len;
-    char* json;
+    uint8_t* data;
 };
 class TcpServer {
     std::unordered_map<PPS_SOCKET, SockData> clientList;
@@ -149,9 +149,10 @@ class TcpServer {
 
         return 0;
     }
-    int Resp(AHPHeader* ahpHdr)
+    int Resp(PacketHeader* pktHdr)
     {
-
+        TaskHandler::Inst()->HandlerMap.at(pktHdr->cmd)((const char *)pktHdr->data);
+        return 0;
     }
     int ProcessEx(PPS_SOCKET sock)
     {
@@ -182,15 +183,15 @@ class TcpServer {
             PPS_CloseSocket(sock);
             return -1;
         }
-        AHPHeader * ahpHdr = (AHPHeader*)cmd.c_str();
-        if (TaskHandler::Inst()->HandlerMap.find(ahpHdr->cmd) != TaskHandler::Inst()->HandlerMap.end())
+        PacketHeader* pktHdr = (PacketHeader*)cmd.c_str();
+        if (TaskHandler::Inst()->HandlerMap.find(pktHdr->cmd) != TaskHandler::Inst()->HandlerMap.end())
         {
-            if (ahpHdr->len == strlen(ahpHdr->json))
+            if (pktHdr->len == strlen((const char *)pktHdr->data))
             {
-                ppsyqm::json json = ppsyqm::json::parse(ahpHdr->json);
+                ppsyqm::json json = ppsyqm::json::parse(pktHdr->data);
                 if (json.is_object())
                 {
-
+                    Resp(pktHdr);
                 }
             }
         }
