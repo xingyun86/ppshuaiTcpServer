@@ -236,7 +236,7 @@ public:
         //nameSockAddr.sin_addr.s_addr = INADDR_ANY;
         nameSockAddr.sin_port = htons(port);
 
-        if (bind(listenSocket, (const sockaddr *)&nameSockAddr, sizeof(nameSockAddr)) == PPS_SOCKET_ERROR) {
+        if (bind(listenSocket, (const sockaddr *)&nameSockAddr, (int)sizeof(nameSockAddr)) == PPS_SOCKET_ERROR) {
             printf("bind() failed.绑定网络端口失败:%d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
             PPS_CloseSocket(listenSocket);
             return 1;
