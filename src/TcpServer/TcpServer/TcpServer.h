@@ -29,15 +29,13 @@ class TcpServer {
 
     int HeartBeat(SocketFdtype sock)
     {
-        if (ReachHeartBeatTime(sock))
-        {
-            std::string message = "heart beat come!\n";
-            send(sock, (const char*)message.data(), message.size(), 0);
-            clientList.at(sock).hbtime = time(nullptr);
-            printf("%lld\n", clientList.at(sock).hbtime);
-        }
+        std::string message = "PONG\r\n";
+        send(sock, (const char*)message.data(), message.size(), 0);
+        clientList.at(sock).hbtime = time(nullptr);
+        printf("Reply Heartbeat:%lld\n", clientList.at(sock).hbtime);
         return 0;
     }
+
     int Process(SocketFdtype sock)
     {
         std::string cmd = ("");
@@ -67,7 +65,10 @@ class TcpServer {
             closesocket(sock);
             return -1;
         }
-
+        if (cmd.compare("PING\r\n") == 0)
+        {
+            HeartBeat(sock);
+        }
         /*DataHeader* pHeader = (DataHeader*)szRecv;
         if (recvLen <= 0)
         {
@@ -115,10 +116,10 @@ class TcpServer {
 public:
     bool ReachHeartBeatTime(SocketFdtype sock)
     {
-        const static int TIME_HEART_BEAT = 10;
-        return ((time(nullptr) - clientList.at(sock).hbtime) >= TIME_HEART_BEAT);
+        const static int TIME_HEART_BEAT = 20;
+        return ((time(nullptr) - clientList.at(sock).hbtime) > TIME_HEART_BEAT);
     }
-    int Start(const std::string& host, uint16_t port = 18001)
+    int Start(const std::string& host, uint16_t port = 18001, boolean nonblock = false)
     {
         int nRet = 0;
         // 加载套接字库
@@ -157,7 +158,10 @@ public:
             return 1;
         }
         u_long nOptVal = 1;
-        //ioctlsocket(listenSocket, FIONBIO, &nOptVal);
+        if (nonblock)
+        {
+            ioctlsocket(listenSocket, FIONBIO, &nOptVal);
+        }
         setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR, (const char *)&nOptVal, sizeof(nOptVal));
 
         //----------------------
@@ -248,6 +252,10 @@ public:
                 }
                 else
                 {
+                    if (nonblock)
+                    {
+                        ioctlsocket(clientSocket, FIONBIO, &nOptVal);
+                    }
                     // 有新的客户端加入，向之前的所有客户端群发消息
                     for (auto& it : clientList)
                     {
@@ -256,7 +264,7 @@ public:
                     }
 
                     clientList.emplace(clientSocket, ClientData(inet_ntoa(clientSockAddr.sin_addr), ntohs(clientSockAddr.sin_port)));
-                    HeartBeat(clientSocket);
+                    clientList.at(clientSocket).hbtime = time(nullptr);
                     // 客户端连接成功，则显示客户端连接的IP地址和端口号
                     printf("新客户端<Sokcet=%d>加入,Ip地址：%s,端口号：%d\n",
                         clientSocket,
@@ -280,9 +288,18 @@ public:
                 }
             }
 
-            for (auto& it : clientList)
+            for (auto it = clientList.begin(); it != clientList.end(); )
             {
-                HeartBeat(it.first);
+                if (ReachHeartBeatTime(it->first))
+                {
+                    printf("客户端<Socket=%d>心跳超时已退出，任务结束...\n", it->first);
+                    closesocket(it->first);
+                    it = clientList.erase(it);
+                }
+                else
+                {
+                    it++;
+                }
             }
             //printf("空闲时间处理其他业务...\n");
         }

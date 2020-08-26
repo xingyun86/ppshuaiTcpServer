@@ -29,10 +29,10 @@ class TcpClient {
     {
         if (ReachHeartBeatTime(sock))
         {
-            std::string message = "heart beat come!\n";
+            std::string message = "PING\r\n";
             send(sock, (const char*)message.data(), message.size(), 0);
             sd->hbtime = time(nullptr);
-            printf("%lld\n", sd->hbtime);
+            printf("Request Heartbeat%lld\n", sd->hbtime);
         }
         return 0;
     }
@@ -65,7 +65,11 @@ class TcpClient {
             closesocket(sock);
             return -1;
         }
-
+        if (cmd.compare("PONG\r\n") == 0)
+        {
+            printf("客户端<Socket=%d>收到心跳回复PONG...\n", sock);
+        }
+        
         /*DataHeader* pHeader = (DataHeader*)szRecv;
         if (recvLen <= 0)
         {
@@ -222,7 +226,7 @@ public:
                 }
             }
 
-            //HeartBeat(clientSocket);
+            HeartBeat(clientSocket);
 
             //printf("空闲时间处理其他业务...\n");
         }
