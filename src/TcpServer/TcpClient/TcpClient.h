@@ -8,82 +8,27 @@
 #include <sstream>
 
 // TODO: Reference additional headers your program requires here.
-#ifdef _MSC_VER
-#include <winsock2.h>
-#define SocketFdtype SOCKET
-#define CloseSocket closesocket
-#else
-#define SocketFdtype int
-#define CloseSocket close
-#endif
-
-class WindowSocket {
-public:
-#ifdef _MSC_VER
-    WORD wHVer = 0x02;
-    WORD wLVer = 0x02;
-    WSADATA wsadata = { 0 };
-    bool bInitializeSuccessful = false;
-#endif // _MSC_VER
-
-    WindowSocket() {
-#ifdef _MSC_VER
-        // Confirm that the WinSock DLL supports 2.2. Note that if the DLL 
-        // supports versions greater than 2.2 in addition to 2.2, it will 
-        // still return 2.2 in wVersion since that is the version we requested.        
-        if ((WSAStartup(MAKEWORD(wLVer, wHVer), &wsadata) != 0) ||
-            (LOBYTE(wsadata.wVersion) != wLVer || HIBYTE(wsadata.wVersion) != wHVer))
-        {
-            WSACleanup();
-            //Tell the user that we could not find a usable WinSock DLL. 
-            bInitializeSuccessful = false;
-        }
-        else
-        {
-            bInitializeSuccessful = true;
-        }
-#endif
-    }
-    ~WindowSocket() {
-#ifdef _MSC_VER
-        WSACleanup();
-#endif
-    }
-    // Return parameter: false-init failure,true-init success
-    static bool Init() {
-#ifdef _MSC_VER
-        static WindowSocket windowSocket;
-        return windowSocket.bInitializeSuccessful;
-#else
-        return true;
-#endif
-    };
-};
+#include <network.h>
 
 class TcpClient {
-    class ServerData {
-    public:
-        std::string ip;
-        uint16_t port;
-        std::stringstream ss;
-        std::shared_ptr<std::mutex> locker = std::make_shared<std::mutex>();
-        time_t hbtime = 0;
-    public:
-        ServerData(const std::string& ip, uint16_t port):ip(ip), port(port) {}
-    };
-   std::shared_ptr<ServerData> sd=nullptr;
-    int HeartBeat(SocketFdtype sock)
+   std::shared_ptr<SockData> sd=nullptr;
+    int ReqHeartBeat(PPS_SOCKET sock)
     {
-        if (ReachHeartBeatTime(sock))
-        {
-            std::string message = "PING\r\n";
-            send(sock, (const char*)message.data(), message.size(), 0);
-            sd->hbtime = time(nullptr);
-            printf("Request Heartbeat%lld\n", sd->hbtime);
-        }
+        std::string message = "PING\r\n";
+        send(sock, (const char*)message.data(), message.size(), 0);
+        sd->hbtime = time(nullptr);
+        printf("Request Heartbeat%lld\n", sd->hbtime);
         return 0;
     }
-    int Process(SocketFdtype sock)
+    int RespHeartBeat(PPS_SOCKET sock)
+    {
+        std::string message = "PONG\r\n";
+        send(sock, (const char*)message.data(), message.size(), 0);
+        sd->hbtime = time(nullptr);
+        printf("Request Heartbeat%lld\n", sd->hbtime);
+        return 0;
+    }
+    int Process(PPS_SOCKET sock)
     {
         std::string cmd = ("");
         // 缓冲区(4096字节)
@@ -96,7 +41,7 @@ class TcpClient {
             printf("客户端<Socket=%d>已退出，任务结束...\n", sock);
             return -1;
         }
-        printf("收到客户端<Socket=%d> 数据长度：%d(%.*s)\n", sock, recvLen, recvLen, szRecv);
+        printf("收到服务端<Socket=%d> 数据长度：%d(%.*s)\n", sock, recvLen, recvLen, szRecv);
         sd->locker->lock();
         sd->ss.write(szRecv, recvLen);
         cmd.assign(sd->ss.str());
@@ -162,23 +107,22 @@ class TcpClient {
     }
 
 public:
-    bool ReachHeartBeatTime(SocketFdtype sock)
+    long TIMER_HEART_BEAT = 20;
+    bool Timeout(std::time_t t, long time)
     {
-        const static int TIME_HEART_BEAT = 10;
-        return ((time(nullptr) -  sd->hbtime) >= TIME_HEART_BEAT);
+        return ((std::time(nullptr) - t) > time);
     }
     int Start(const std::string& host, uint16_t port = 18001)
     {
-        int nRet = 0;
-        WindowSocket::Init();
+        NET_INIT();
 
         /* The WinSock DLL is acceptable. Proceed. */
          //----------------------
         // Create a SOCKET for listening for
         // incoming connection requests.
-        SOCKET clientSocket = INVALID_SOCKET;
+        PPS_SOCKET clientSocket = PPS_INVALID_SOCKET;
         clientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
-        if (clientSocket == INVALID_SOCKET) {
+        if (clientSocket == PPS_INVALID_SOCKET) {
             printf("Error at socket(): %ld\n", WSAGetLastError());
             return 1;
         }
@@ -197,7 +141,7 @@ public:
 
         if (connect(clientSocket, (sockaddr*)&serverSockAddr, sizeof(sockaddr_in)) == SOCKET_ERROR) {
             printf("错误，连接服务器失败...\n");
-            CloseSocket(clientSocket);
+            PPS_CloseSocket(clientSocket);
             return 1;
         }
         else
@@ -207,7 +151,7 @@ public:
 
         printf("客户端连接服务器成功...\n");
 
-        sd = std::make_shared<ServerData>(host, port);
+        sd = std::make_shared<SockData>(host, port);
 
         while (true)
         {
@@ -249,13 +193,16 @@ public:
                 }
             }
 
-            HeartBeat(clientSocket);
+            if (Timeout(sd->hbtime, TIMER_HEART_BEAT))
+            {
+                ReqHeartBeat(clientSocket);
+            }
 
             //printf("空闲时间处理其他业务...\n");
         }
 
         // 8.关闭套接字
-        CloseSocket(clientSocket);
+        PPS_CloseSocket(clientSocket);
 
         printf("客户端已退出，任务结束\n");
 

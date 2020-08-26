@@ -9,73 +9,13 @@
 #include <sstream>
 
 // TODO: Reference additional headers your program requires here.
-#ifdef _MSC_VER
-#include <winsock2.h>
-#define SocketFdtype SOCKET
-#define CloseSocket closesocket
-#else
-#define SocketFdtype int
-#define CloseSocket close
-#define INVALID_SOCKET -1
-#endif
 
-class WindowSocket {
-public:
-#ifdef _MSC_VER
-    WORD wHVer = 0x02;
-    WORD wLVer = 0x02;
-    WSADATA wsadata = { 0 };
-    bool bInitializeSuccessful = false;
-#endif // _MSC_VER
-
-    WindowSocket() {
-#ifdef _MSC_VER
-        // Confirm that the WinSock DLL supports 2.2. Note that if the DLL 
-        // supports versions greater than 2.2 in addition to 2.2, it will 
-        // still return 2.2 in wVersion since that is the version we requested.        
-        if ((WSAStartup(MAKEWORD(wLVer, wHVer), &wsadata) != 0) ||
-            (LOBYTE(wsadata.wVersion) != wLVer || HIBYTE(wsadata.wVersion) != wHVer))
-        {                      
-            WSACleanup();
-            //Tell the user that we could not find a usable WinSock DLL. 
-            bInitializeSuccessful = false;
-        }
-        else
-        {
-            bInitializeSuccessful = true;
-        }
-#endif
-    }
-    ~WindowSocket() {
-#ifdef _MSC_VER
-        WSACleanup();
-#endif
-    }
-    // Return parameter: false-init failure,true-init success
-    static bool Init() {
-#ifdef _MSC_VER
-        static WindowSocket windowSocket;
-        return windowSocket.bInitializeSuccessful;
-#else
-        return true;
-#endif
-    };    
-};
+#include <network.h>
 
 class TcpServer {
-    class ClientData {
-    public:
-        std::string ip;
-        uint16_t port;
-        std::stringstream ss;
-        std::shared_ptr<std::mutex> locker = std::make_shared<std::mutex>();
-        time_t hbtime = 0;
-    public:
-        ClientData(const std::string& ip, uint16_t port):ip(ip), port(port) {}
-    };
-    std::unordered_map<SocketFdtype, ClientData> clientList;
+    std::unordered_map<PPS_SOCKET, SockData> clientList;
 
-    int HeartBeat(SocketFdtype sock)
+    int RespHeartBeat(PPS_SOCKET sock)
     {
         std::string message = "PONG\r\n";
         send(sock, (const char*)message.data(), message.size(), 0);
@@ -83,8 +23,22 @@ class TcpServer {
         printf("Reply Heartbeat:%lld\n", clientList.at(sock).hbtime);
         return 0;
     }
-
-    int Process(SocketFdtype sock)
+    int ReqHeartBeat(PPS_SOCKET sock)
+    {
+        std::string message = "PING\r\n";
+        send(sock, (const char*)message.data(), message.size(), 0);
+        clientList.at(sock).hbtime = time(nullptr);
+        printf("Reply Heartbeat:%lld\n", clientList.at(sock).hbtime);
+        return 0;
+    }
+    int PushData(PPS_SOCKET sock) {
+        std::string message = "PushData\r\n";
+        send(sock, (const char*)message.data(), message.size(), 0);
+        clientList.at(sock).timerid = time(nullptr);
+        printf("Reply Heartbeat:%lld\n", clientList.at(sock).hbtime);
+        return 0;
+    }
+    int Process(PPS_SOCKET sock)
     {
         std::string cmd = ("");
         // 缓冲区(4096字节)
@@ -110,12 +64,12 @@ class TcpServer {
         if (cmd.compare("quit\r\n") == 0)
         {
             printf("客户端<Socket=%d>已主动退出，任务结束...\n", sock);
-            CloseSocket(sock);
+            PPS_CloseSocket(sock);
             return -1;
         }
         if (cmd.compare("PING\r\n") == 0)
         {
-            HeartBeat(sock);
+            RespHeartBeat(sock);
         }
         /*DataHeader* pHeader = (DataHeader*)szRecv;
         if (recvLen <= 0)
@@ -162,25 +116,24 @@ class TcpServer {
     }
 
 public:
-    bool ReachHeartBeatTime(SocketFdtype sock)
+    int TIMER_PUSH_DATA = 20;
+    int TIMER_HEART_BEAT = 20;
+    bool Timeout(std::time_t t, long time)
     {
-        const static int TIME_HEART_BEAT = 20;
-        return ((time(nullptr) - clientList.at(sock).hbtime) > TIME_HEART_BEAT);
+        return ((std::time(nullptr) - t) > time);
     }
     int Start(const std::string& host, uint16_t port = 18001, boolean nonblock = false)
     {
-        int nRet = 0;
-
-        WindowSocket::Init();
+        NET_INIT();
 
         /* The WinSock DLL is acceptable. Proceed. */
          //----------------------
         // Create a SOCKET for listening for
         // incoming connection requests.
-        SocketFdtype listenSocket = INVALID_SOCKET;
+        PPS_SOCKET listenSocket = PPS_INVALID_SOCKET;
         listenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
-        if (listenSocket == INVALID_SOCKET) {
-            printf("Error at socket(): %ld\n", WSAGetLastError());
+        if (listenSocket == PPS_INVALID_SOCKET) {
+            printf("Error at socket(): %d,%s\n", errno, strerror(errno));
             return 1;
         }
         u_long nOptVal = 1;
@@ -193,15 +146,15 @@ public:
         //----------------------
         // The sockaddr_in structure specifies the address family,
         // IP address, and port for the socket that is being bound.
-        sockaddr_in serverSockAddr = { 0 };
-        serverSockAddr.sin_family = AF_INET;
-        serverSockAddr.sin_addr.s_addr = inet_addr(host.c_str());
-        //serverSockAddr.sin_addr.s_addr = INADDR_ANY;
-        serverSockAddr.sin_port = htons(port);
+        sockaddr_in nameSockAddr = { 0 };
+        nameSockAddr.sin_family = AF_INET;
+        nameSockAddr.sin_addr.s_addr = inet_addr(host.c_str());
+        //nameSockAddr.sin_addr.s_addr = INADDR_ANY;
+        nameSockAddr.sin_port = htons(port);
 
-        if (bind(listenSocket, (const sockaddr *)&serverSockAddr, sizeof(serverSockAddr)) == SOCKET_ERROR) {
-            printf("bind() failed.绑定网络端口失败(%d)\n", WSAGetLastError());
-            CloseSocket(listenSocket);
+        if (bind(listenSocket, (const sockaddr *)&nameSockAddr, sizeof(nameSockAddr)) == PPS_SOCKET_ERROR) {
+            printf("bind() failed.绑定网络端口失败:%d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
+            PPS_CloseSocket(listenSocket);
             return 1;
         }
         else
@@ -212,9 +165,9 @@ public:
         //----------------------
         // Listen for incoming connection requests.
         // on the created socket
-        if (listen(listenSocket, 5) == SOCKET_ERROR) {
-            printf("错误，监听网络端口失败...\n");
-            CloseSocket(listenSocket);
+        if (listen(listenSocket, 5) == PPS_SOCKET_ERROR) {
+            printf("错误，监听网络端口失败...%d,%s)\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
+            PPS_CloseSocket(listenSocket);
             return 1;
         }
         else
@@ -254,7 +207,7 @@ public:
             int ret = select((int)listenSocket + 1, &readfds, &writefds, &exceptfds, &timeout);
             if (ret < 0)
             {
-                printf("select任务结束,called failed:%d!\n", WSAGetLastError());
+                printf("select任务结束,called failed:%d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
                 break;
             }
 
@@ -268,10 +221,10 @@ public:
                 // 4. accept 等待接受客户端连接
                 sockaddr_in clientSockAddr = { 0 };
                 int nclientSockAddrLen = sizeof(sockaddr_in);
-                SocketFdtype clientSocket = INVALID_SOCKET;
+                PPS_SOCKET clientSocket = PPS_INVALID_SOCKET;
                 clientSocket = accept(listenSocket, (sockaddr*)&clientSockAddr, &nclientSockAddrLen);
-                if (INVALID_SOCKET == clientSocket) {
-                    printf("accept() failed: %d,接收到无效客户端Socket\n", WSAGetLastError());
+                if (PPS_INVALID_SOCKET == clientSocket) {
+                    printf("accept() failed:接收到无效客户端Socket%d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
                     return 1;
                 }
                 else
@@ -287,7 +240,7 @@ public:
                         send(it.first, (const char*)message.data(), message.size(), 0);
                     }
 
-                    clientList.emplace(clientSocket, ClientData(inet_ntoa(clientSockAddr.sin_addr), ntohs(clientSockAddr.sin_port)));
+                    clientList.emplace(clientSocket, SockData(inet_ntoa(clientSockAddr.sin_addr), ntohs(clientSockAddr.sin_port)));
                     clientList.at(clientSocket).hbtime = time(nullptr);
                     // 客户端连接成功，则显示客户端连接的IP地址和端口号
                     printf("新客户端<Sokcet=%d>加入,Ip地址：%s,端口号：%d\n",
@@ -314,14 +267,18 @@ public:
 
             for (auto it = clientList.begin(); it != clientList.end(); )
             {
-                if (ReachHeartBeatTime(it->first))
+                if (Timeout(it->second.hbtime, TIMER_HEART_BEAT))
                 {
                     printf("客户端<Socket=%d>心跳超时已退出，任务结束...\n", it->first);
-                    CloseSocket(it->first);
+                    PPS_CloseSocket(it->first);
                     it = clientList.erase(it);
                 }
                 else
                 {
+                    if (Timeout(it->second.timerid, TIMER_PUSH_DATA))
+                    {
+                        PushData(it->first);
+                    }
                     it++;
                 }
             }
@@ -330,11 +287,11 @@ public:
 
         for (auto& it : clientList)
         {
-            CloseSocket(it.first);
+            PPS_CloseSocket(it.first);
         }
 
         // 8.关闭套接字
-        CloseSocket(listenSocket);
+        PPS_CloseSocket(listenSocket);
 
         printf("服务端已退出，任务结束\n");
 
