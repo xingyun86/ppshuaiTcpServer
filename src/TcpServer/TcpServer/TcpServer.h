@@ -11,7 +11,42 @@
 // TODO: Reference additional headers your program requires here.
 
 #include <network.h>
+#include <ppsyqm/json.hpp>
 
+#include<functional>
+class TaskHandler {
+public:
+    static int HeartBeat(const std::string& data)
+    {
+
+    }
+    static int GetConfig(const std::string& data)
+    {
+
+    }
+    static int SetConfig(const std::string& data)
+    {
+
+    }
+public:
+    TaskHandler()
+    {
+        HandlerMap.emplace(0, HeartBeat);
+        HandlerMap.emplace(1, GetConfig);
+        HandlerMap.emplace(2, SetConfig);
+    }
+    std::unordered_map<uint16_t, std::function<int(const std::string&)>> HandlerMap;
+public:
+    static TaskHandler* Inst() {
+        static TaskHandler taskHandlerInstance;
+        return &taskHandlerInstance;
+    }
+};
+typedef struct AHPHeader {
+    uint16_t cmd;
+    uint32_t len;
+    char* json;
+};
 class TcpServer {
     std::unordered_map<PPS_SOCKET, SockData> clientList;
 
@@ -114,6 +149,54 @@ class TcpServer {
 
         return 0;
     }
+    int Resp(AHPHeader* ahpHdr)
+    {
+
+    }
+    int ProcessEx(PPS_SOCKET sock)
+    {
+        std::string cmd = ("");
+        // 缓冲区(4096字节)
+        char szRecv[4096] = {};
+        // 5、接收客户端的请求
+        // 接收消息
+        int recvLen = recv(sock, szRecv, sizeof(szRecv), 0);
+        if (recvLen <= 0)
+        {
+            printf("客户端<Socket=%d>已退出，任务结束...\n", sock);
+            return -1;
+        }
+        printf("收到客户端<Socket=%d> 数据长度：%d(%.*s)\n", sock, recvLen, recvLen, szRecv);
+        clientList.at(sock).locker->lock();
+        clientList.at(sock).ss.write(szRecv, recvLen);
+        cmd.assign(clientList.at(sock).ss.str());
+        if (*cmd.rbegin() == '}')
+        {
+            clientList.at(sock).ss.clear();
+            clientList.at(sock).ss.str("");
+        }
+        clientList.at(sock).locker->unlock();
+        if (cmd.compare("quit\r\n") == 0)
+        {
+            printf("客户端<Socket=%d>已主动退出，任务结束...\n", sock);
+            PPS_CloseSocket(sock);
+            return -1;
+        }
+        AHPHeader * ahpHdr = (AHPHeader*)cmd.c_str();
+        if (TaskHandler::Inst()->HandlerMap.find(ahpHdr->cmd) != TaskHandler::Inst()->HandlerMap.end())
+        {
+            if (ahpHdr->len == strlen(ahpHdr->json))
+            {
+                ppsyqm::json json = ppsyqm::json::parse(ahpHdr->json);
+                if (json.is_object())
+                {
+
+                }
+            }
+        }
+        return 0;
+    }
+
 
 public:
     int TIMER_PUSH_DATA = 20;
