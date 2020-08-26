@@ -12,8 +12,56 @@
 #ifdef _MSC_VER
 #include <winsock2.h>
 #define SocketFdtype SOCKET
+#define CloseSocket closesocket
 #else
+#define SocketFdtype int
+#define CloseSocket close
+#define INVALID_SOCKET -1
 #endif
+
+class WindowSocket {
+public:
+#ifdef _MSC_VER
+    WORD wHVer = 0x02;
+    WORD wLVer = 0x02;
+    WSADATA wsadata = { 0 };
+    bool bInitializeSuccessful = false;
+#endif // _MSC_VER
+
+    WindowSocket() {
+#ifdef _MSC_VER
+        // Confirm that the WinSock DLL supports 2.2. Note that if the DLL 
+        // supports versions greater than 2.2 in addition to 2.2, it will 
+        // still return 2.2 in wVersion since that is the version we requested.        
+        if ((WSAStartup(MAKEWORD(wLVer, wHVer), &wsadata) != 0) ||
+            (LOBYTE(wsadata.wVersion) != wLVer || HIBYTE(wsadata.wVersion) != wHVer))
+        {                      
+            WSACleanup();
+            //Tell the user that we could not find a usable WinSock DLL. 
+            bInitializeSuccessful = false;
+        }
+        else
+        {
+            bInitializeSuccessful = true;
+        }
+#endif
+    }
+    ~WindowSocket() {
+#ifdef _MSC_VER
+        WSACleanup();
+#endif
+    }
+    // Return parameter: false-init failure,true-init success
+    static bool Init() {
+#ifdef _MSC_VER
+        static WindowSocket windowSocket;
+        return windowSocket.bInitializeSuccessful;
+#else
+        return true;
+#endif
+    };    
+};
+
 class TcpServer {
     class ClientData {
     public:
@@ -62,7 +110,7 @@ class TcpServer {
         if (cmd.compare("quit\r\n") == 0)
         {
             printf("客户端<Socket=%d>已主动退出，任务结束...\n", sock);
-            closesocket(sock);
+            CloseSocket(sock);
             return -1;
         }
         if (cmd.compare("PING\r\n") == 0)
@@ -122,39 +170,17 @@ public:
     int Start(const std::string& host, uint16_t port = 18001, boolean nonblock = false)
     {
         int nRet = 0;
-        // 加载套接字库
-        WSADATA wsaData = { 0 };
-        // 启动Windows Socket 2.2环境
-        if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
-        {
-            /* Tell the user that we could not find a usable */
-            /* WinSock DLL.                                  */
-            return 1;
-        }
 
-        /* Confirm that the WinSock DLL supports 2.2.*/
-        /* Note that if the DLL supports versions greater    */
-        /* than 2.2 in addition to 2.2, it will still return */
-        /* 2.2 in wVersion since that is the version we      */
-        /* requested.                                        */
-        if (LOBYTE(wsaData.wVersion) != 2 ||
-            HIBYTE(wsaData.wVersion) != 2)
-        {
-            /* Tell the user that we could not find a usable */
-            /* WinSock DLL.                                  */
-            WSACleanup();
-            return 1;
-        }
+        WindowSocket::Init();
 
         /* The WinSock DLL is acceptable. Proceed. */
          //----------------------
         // Create a SOCKET for listening for
         // incoming connection requests.
-        SOCKET listenSocket = INVALID_SOCKET;
+        SocketFdtype listenSocket = INVALID_SOCKET;
         listenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
         if (listenSocket == INVALID_SOCKET) {
             printf("Error at socket(): %ld\n", WSAGetLastError());
-            WSACleanup();
             return 1;
         }
         u_long nOptVal = 1;
@@ -175,8 +201,7 @@ public:
 
         if (bind(listenSocket, (const sockaddr *)&serverSockAddr, sizeof(serverSockAddr)) == SOCKET_ERROR) {
             printf("bind() failed.绑定网络端口失败(%d)\n", WSAGetLastError());
-            closesocket(INVALID_SOCKET);
-            WSACleanup();
+            CloseSocket(listenSocket);
             return 1;
         }
         else
@@ -189,8 +214,7 @@ public:
         // on the created socket
         if (listen(listenSocket, 5) == SOCKET_ERROR) {
             printf("错误，监听网络端口失败...\n");
-            closesocket(listenSocket);
-            WSACleanup();
+            CloseSocket(listenSocket);
             return 1;
         }
         else
@@ -293,7 +317,7 @@ public:
                 if (ReachHeartBeatTime(it->first))
                 {
                     printf("客户端<Socket=%d>心跳超时已退出，任务结束...\n", it->first);
-                    closesocket(it->first);
+                    CloseSocket(it->first);
                     it = clientList.erase(it);
                 }
                 else
@@ -306,13 +330,11 @@ public:
 
         for (auto& it : clientList)
         {
-            closesocket(it.first);
+            CloseSocket(it.first);
         }
 
         // 8.关闭套接字
-        closesocket(listenSocket);
-        // 9.清除Windows Socket环境
-        WSACleanup();
+        CloseSocket(listenSocket);
 
         printf("服务端已退出，任务结束\n");
 

@@ -11,8 +11,55 @@
 #ifdef _MSC_VER
 #include <winsock2.h>
 #define SocketFdtype SOCKET
+#define CloseSocket closesocket
 #else
+#define SocketFdtype int
+#define CloseSocket close
 #endif
+
+class WindowSocket {
+public:
+#ifdef _MSC_VER
+    WORD wHVer = 0x02;
+    WORD wLVer = 0x02;
+    WSADATA wsadata = { 0 };
+    bool bInitializeSuccessful = false;
+#endif // _MSC_VER
+
+    WindowSocket() {
+#ifdef _MSC_VER
+        // Confirm that the WinSock DLL supports 2.2. Note that if the DLL 
+        // supports versions greater than 2.2 in addition to 2.2, it will 
+        // still return 2.2 in wVersion since that is the version we requested.        
+        if ((WSAStartup(MAKEWORD(wLVer, wHVer), &wsadata) != 0) ||
+            (LOBYTE(wsadata.wVersion) != wLVer || HIBYTE(wsadata.wVersion) != wHVer))
+        {
+            WSACleanup();
+            //Tell the user that we could not find a usable WinSock DLL. 
+            bInitializeSuccessful = false;
+        }
+        else
+        {
+            bInitializeSuccessful = true;
+        }
+#endif
+    }
+    ~WindowSocket() {
+#ifdef _MSC_VER
+        WSACleanup();
+#endif
+    }
+    // Return parameter: false-init failure,true-init success
+    static bool Init() {
+#ifdef _MSC_VER
+        static WindowSocket windowSocket;
+        return windowSocket.bInitializeSuccessful;
+#else
+        return true;
+#endif
+    };
+};
+
 class TcpClient {
     class ServerData {
     public:
@@ -123,29 +170,7 @@ public:
     int Start(const std::string& host, uint16_t port = 18001)
     {
         int nRet = 0;
-        // 加载套接字库
-        WSADATA wsaData = { 0 };
-        // 启动Windows Socket 2.2环境
-        if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
-        {
-            /* Tell the user that we could not find a usable */
-            /* WinSock DLL.                                  */
-            return 1;
-        }
-
-        /* Confirm that the WinSock DLL supports 2.2.*/
-        /* Note that if the DLL supports versions greater    */
-        /* than 2.2 in addition to 2.2, it will still return */
-        /* 2.2 in wVersion since that is the version we      */
-        /* requested.                                        */
-        if (LOBYTE(wsaData.wVersion) != 2 ||
-            HIBYTE(wsaData.wVersion) != 2)
-        {
-            /* Tell the user that we could not find a usable */
-            /* WinSock DLL.                                  */
-            WSACleanup();
-            return 1;
-        }
+        WindowSocket::Init();
 
         /* The WinSock DLL is acceptable. Proceed. */
          //----------------------
@@ -155,7 +180,6 @@ public:
         clientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
         if (clientSocket == INVALID_SOCKET) {
             printf("Error at socket(): %ld\n", WSAGetLastError());
-            WSACleanup();
             return 1;
         }
         u_long nOptVal = 1;
@@ -173,8 +197,7 @@ public:
 
         if (connect(clientSocket, (sockaddr*)&serverSockAddr, sizeof(sockaddr_in)) == SOCKET_ERROR) {
             printf("错误，连接服务器失败...\n");
-            closesocket(clientSocket);
-            WSACleanup();
+            CloseSocket(clientSocket);
             return 1;
         }
         else
@@ -232,9 +255,7 @@ public:
         }
 
         // 8.关闭套接字
-        closesocket(clientSocket);
-        // 9.清除Windows Socket环境
-        WSACleanup();
+        CloseSocket(clientSocket);
 
         printf("客户端已退出，任务结束\n");
 
