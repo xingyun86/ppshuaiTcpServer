@@ -16,15 +16,15 @@
 #include<functional>
 class TaskHandler {
 public:
-    static int HeartBeat(const std::string& data)
+    static int HeartBeat(ppsyqm::json& data)
     {
 
     }
-    static int GetConfig(const std::string& data)
+    static int GetConfig(ppsyqm::json& data)
     {
 
     }
-    static int SetConfig(const std::string& data)
+    static int SetConfig(ppsyqm::json& data)
     {
 
     }
@@ -35,7 +35,7 @@ public:
         HandlerMap.emplace(1, GetConfig);
         HandlerMap.emplace(2, SetConfig);
     }
-    std::unordered_map<uint16_t, std::function<int(const std::string&)>> HandlerMap;
+    std::unordered_map<uint16_t, std::function<int(ppsyqm::json& json)>> HandlerMap;
 public:
     static TaskHandler* Inst() {
         static TaskHandler taskHandlerInstance;
@@ -43,9 +43,12 @@ public:
     }
 };
 typedef struct PacketHeader {
-    uint16_t cmd;
-    uint32_t len;
-    uint8_t* data;
+    uint16_t type;
+    uint32_t size;
+};
+typedef struct PacketStruct {
+    PacketHeader head;
+    uint8_t * data;
 };
 class TcpServer {
     std::unordered_map<PPS_SOCKET, SockData> clientList;
@@ -149,11 +152,6 @@ class TcpServer {
 
         return 0;
     }
-    int Resp(PacketHeader* pktHdr)
-    {
-        TaskHandler::Inst()->HandlerMap.at(pktHdr->cmd)((const char *)pktHdr->data);
-        return 0;
-    }
     int ProcessEx(PPS_SOCKET sock)
     {
         std::string cmd = ("");
@@ -183,15 +181,15 @@ class TcpServer {
             PPS_CloseSocket(sock);
             return -1;
         }
-        PacketHeader* pktHdr = (PacketHeader*)cmd.c_str();
-        if (TaskHandler::Inst()->HandlerMap.find(pktHdr->cmd) != TaskHandler::Inst()->HandlerMap.end())
+        PacketStruct* pkt = (PacketStruct*)cmd.c_str();
+        if (TaskHandler::Inst()->HandlerMap.find(pkt->head.type) != TaskHandler::Inst()->HandlerMap.end())
         {
-            if (pktHdr->len == strlen((const char *)pktHdr->data))
+            if (pkt->head.size == strlen((const char *)pkt->data))
             {
-                ppsyqm::json json = ppsyqm::json::parse(pktHdr->data);
+                ppsyqm::json json = ppsyqm::json::parse(pkt->data);
                 if (json.is_object())
                 {
-                    Resp(pktHdr);
+                    TaskHandler::Inst()->HandlerMap.at(pkt->head.type)(json);
                 }
             }
         }
