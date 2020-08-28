@@ -8,26 +8,27 @@
 #include <iostream>
 #include <mutex>
 #include <sstream>
+#include <unordered_map>
 
 // TODO: Reference additional headers your program requires here.
 #include <network.h>
 
 class TcpClient {
-   std::shared_ptr<SockData> sd=nullptr;
+    std::unordered_map<PPS_SOCKET, SockData> clientList;
     int ReqHeartBeat(PPS_SOCKET sock)
     {
         std::string message = "PING\r\n";
         send(sock, (const char*)message.data(), message.size(), 0);
-        sd->hbtime = time(nullptr);
-        printf("Request Heartbeat%lld\n", sd->hbtime);
+        clientList.at(sock).hbtime = time(nullptr);
+        printf("Request Heartbeat%lld\n", clientList.at(sock).hbtime);
         return 0;
     }
     int RespHeartBeat(PPS_SOCKET sock)
     {
         std::string message = "PONG\r\n";
         send(sock, (const char*)message.data(), message.size(), 0);
-        sd->hbtime = time(nullptr);
-        printf("Request Heartbeat%lld\n", sd->hbtime);
+        clientList.at(sock).hbtime = time(nullptr);
+        printf("Request Heartbeat%lld\n", clientList.at(sock).hbtime);
         return 0;
     }
     int Process(PPS_SOCKET sock)
@@ -44,15 +45,15 @@ class TcpClient {
             return -1;
         }
         printf("收到服务端<Socket=%d> 数据长度：%d(%.*s)\n", sock, recvLen, recvLen, szRecv);
-        sd->locker->lock();
-        sd->ss.write(szRecv, recvLen);
-        cmd.assign(sd->ss.str());
+        clientList.at(sock).locker->lock();
+        clientList.at(sock).ss.write(szRecv, recvLen);
+        cmd.assign(clientList.at(sock).ss.str());
         if (*cmd.rbegin() == '\n')
         {
-            sd->ss.clear();
-            sd->ss.str("");
+            clientList.at(sock).ss.clear();
+            clientList.at(sock).ss.str("");
         }
-        sd->locker->unlock();
+        clientList.at(sock).locker->unlock();
         if (cmd.compare("quit\r\n") == 0)
         {
             printf("客户端<Socket=%d>已主动退出，任务结束...\n", sock);
@@ -117,23 +118,30 @@ public:
     int Start(const std::string& host, uint16_t port = 18001, uint8_t nonblock = 0)
     {
         NET_INIT();
-        
+
+        int nStatus = 0;
+        int nSockOpt = 0;
+        int nSockOptLen = sizeof(nSockOpt);
+
+        u_long nOptVal = 1;
         // Berkeley sockets
         fd_set readfds = { 0 };			// 描述符(socket)集合
         fd_set writefds = { 0 };
         fd_set exceptfds = { 0 };
+        struct timeval timeout = { 0 };
+        sockaddr_in nameSockAddr = { 0 };
+        PPS_SOCKET maxSocket = PPS_INVALID_SOCKET;
+        PPS_SOCKET clientSocket = PPS_INVALID_SOCKET;
 
         /* The WinSock DLL is acceptable. Proceed. */
          //----------------------
         // Create a SOCKET for listening for
         // incoming connection requests.
-        PPS_SOCKET clientSocket = PPS_INVALID_SOCKET;
         clientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
         if (clientSocket == PPS_INVALID_SOCKET) {
             printf("Error at socket(): %d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
             return 1;
         }
-        u_long nOptVal = 1;
         if (nonblock != 0)
         {
             PPS_SetNonBlock(clientSocket, nonblock);
@@ -143,25 +151,18 @@ public:
         //----------------------
         // Listen for incoming connection requests.
         // on the created socket        
-        sockaddr_in serverSockAddr = { 0 };
-        serverSockAddr.sin_family = AF_INET;
-        serverSockAddr.sin_addr.s_addr = inet_addr(host.c_str());
-        //serverSockAddr.sin_addr.s_addr = INADDR_ANY;
-        serverSockAddr.sin_port = htons(port);
-        if (connect(clientSocket, (sockaddr*)&serverSockAddr, sizeof(sockaddr_in)) == SOCKET_ERROR)
+        nameSockAddr.sin_family = AF_INET;
+        nameSockAddr.sin_addr.s_addr = inet_addr(host.c_str());
+        //nameSockAddr.sin_addr.s_addr = INADDR_ANY;
+        nameSockAddr.sin_port = htons(port);
+        if (connect(clientSocket, (sockaddr*)&nameSockAddr, sizeof(sockaddr_in)) == PPS_SOCKET_ERROR)
         {
-            /*if (NET_ERR_CODE == WSAEISCONN)
-            {
-                printf("连接服务器成功...\n");
-            }*/
-            printf("连接服务器... %d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
             if (NET_ERR_CODE == PPS_EWOULDBLOCK)
             {
-                struct timeval timeout;
-                int error;
-                int errorLen = sizeof(int);
+                // 设置超时时间 select 非阻塞
                 timeout.tv_sec = 1;
                 timeout.tv_usec = 0;
+
                 // 清理集合
                 FD_ZERO(&readfds);
                 FD_ZERO(&writefds);
@@ -171,28 +172,46 @@ public:
                 FD_SET(clientSocket, &readfds);
                 FD_SET(clientSocket, &writefds);
                 FD_SET(clientSocket, &exceptfds);
-                if (select((int)clientSocket + 1, &readfds, &writefds, &exceptfds, &timeout) > 0) 
+
+                nStatus = select((int)clientSocket + 1, &readfds, &writefds, &exceptfds, &timeout);
+                if (nStatus < 0)
                 {
-                    getsockopt(clientSocket, SOL_SOCKET, SO_ERROR, (char *)&error, (int*)&errorLen);
-                    if (error != 0)
-                    {
-                        printf("连接服务器失败... %d\n", error);
-                        PPS_CloseSocket(clientSocket);
-                        return (1);
-                    }
+                    //timeout or select error
+                    printf("连接服务器失败...\n");
+                    PPS_CloseSocket(clientSocket);
+                    return (1);
                 }
-                else { 
+                else if (nStatus == 0)
+                {
                     //timeout or select error
                     printf("连接服务器超时失败...\n");
                     PPS_CloseSocket(clientSocket);
                     return (1);
                 }
+                else
+                {
+                    getsockopt(clientSocket, SOL_SOCKET, SO_ERROR, (PPS_SOCKOPT_T*)&nSockOpt, (PPS_SOCKLEN_T*)&nSockOptLen);
+                    if (nSockOpt != 0)
+                    {
+                        printf("连接服务器失败... %d\n", nSockOpt);
+                        PPS_CloseSocket(clientSocket);
+                        return (1);
+                    }
+                }
+            }
+            else
+            {
+                printf("连接服务器失败... %d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
+                return (1);
             }
         }
+        
+        clientList.emplace(clientSocket, SockData(inet_ntoa(nameSockAddr.sin_addr), ntohs(nameSockAddr.sin_port)));
+        clientList.at(clientSocket).hbtime = time(nullptr);
 
         printf("客户端连接服务器成功...\n");
 
-        sd = std::make_shared<SockData>(host, port);
+        maxSocket = clientSocket;
 
         while (true)
         {
@@ -207,33 +226,43 @@ public:
             FD_SET(clientSocket, &exceptfds);
 
             // 设置超时时间 select 非阻塞
-            timeval timeout = { 0 };
             timeout.tv_sec = 1;
             timeout.tv_usec = 0;
 
             // nfds是一个整数值，是指fd_set集合中所有描述符(socket)的范围，而不是数量
             // 即是所有文件描述符最大值+1 在Windows中这个参数可以写0
-            int ret = select((int)clientSocket + 1, &readfds, &writefds, &exceptfds, &timeout);
-            if (ret < 0)
+            nStatus = select((int)maxSocket + 1, &readfds, &writefds, &exceptfds, &timeout);
+            if (nStatus < 0)
             {
-                printf("select任务结束,called failed:%d!\n", WSAGetLastError());
+                printf("select任务结束,called failed:%d, %s!\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE));
                 break;
             }
-
-            // 是否有数据可读
-            // 判断描述符(socket)是否在集合中
-            if (FD_ISSET(clientSocket, &readfds))
+            else  if (nStatus == 0)
             {
-                FD_CLR(clientSocket, &readfds);
-                if (Process(clientSocket) == (-1))
+                ;
+            }
+            else
+            {
+                for (PPS_SOCKET s = clientSocket; s < maxSocket + 1; s++)
                 {
-                    break;
+                    // 是否有数据可读,判断描述符(socket)是否在集合中
+                    if (FD_ISSET(s, &readfds))
+                    {
+                        FD_CLR(s, &readfds);
+                        if (Process(s) == (-1))
+                        {
+                            return 1;
+                        }
+                    }
                 }
             }
 
-            if (Timeout(sd->hbtime, TIMER_HEART_BEAT))
+            for (PPS_SOCKET s = clientSocket; s < maxSocket + 1; s++)
             {
-                ReqHeartBeat(clientSocket);
+                if (Timeout(clientList.at(s).hbtime, TIMER_HEART_BEAT))
+                {
+                    ReqHeartBeat(clientSocket);
+                }
             }
 
             //printf("空闲时间处理其他业务...\n");

@@ -208,17 +208,26 @@ public:
     {
         NET_INIT();
 
+        int nStatus = 0;
+        u_long nOptVal = 1;
+        // Berkeley sockets
+        fd_set readfds = { 0 };			// 描述符(socket)集合
+        fd_set writefds = { 0 };
+        fd_set exceptfds = { 0 };
+        struct timeval timeout = { 0 };
+        sockaddr_in nameSockAddr = { 0 };
+        PPS_SOCKET maxSocket = PPS_INVALID_SOCKET;
+        PPS_SOCKET listenSocket = PPS_INVALID_SOCKET;
+
         /* The WinSock DLL is acceptable. Proceed. */
          //----------------------
         // Create a SOCKET for listening for
         // incoming connection requests.
-        PPS_SOCKET listenSocket = PPS_INVALID_SOCKET;
         listenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
         if (listenSocket == PPS_INVALID_SOCKET) {
             printf("Error at socket(): %d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
             return 1;
         }
-        u_long nOptVal = 1;
         if (nonblock != 0)
         {
             PPS_SetNonBlock(listenSocket, nonblock);
@@ -228,7 +237,6 @@ public:
         //----------------------
         // The sockaddr_in structure specifies the address family,
         // IP address, and port for the socket that is being bound.
-        sockaddr_in nameSockAddr = { 0 };
         nameSockAddr.sin_family = AF_INET;
         nameSockAddr.sin_addr.s_addr = inet_addr(host.c_str());
         //nameSockAddr.sin_addr.s_addr = INADDR_ANY;
@@ -258,14 +266,9 @@ public:
         }
 
         printf("等待客户端连接...\n");
-
+        maxSocket = listenSocket;
         while (true)
         {
-            // Berkeley sockets
-            fd_set readfds = { 0 };			// 描述符(socket)集合
-            fd_set writefds = { 0 };
-            fd_set exceptfds = { 0 };
-
             // 清理集合
             FD_ZERO(&readfds);
             FD_ZERO(&writefds);
@@ -282,69 +285,83 @@ public:
             }
 
             // 设置超时时间 select 非阻塞
-            timeval timeout = { 0 };
             timeout.tv_sec = 1;
             timeout.tv_usec = 0;
 
             // nfds是一个整数值，是指fd_set集合中所有描述符(socket)的范围，而不是数量
             // 即是所有文件描述符最大值+1 在Windows中这个参数可以写0
-            int ret = select((int)listenSocket + 1, &readfds, &writefds, &exceptfds, &timeout);
-            if (ret < 0)
+            nStatus = select((int)maxSocket + 1, &readfds, &writefds, &exceptfds, &timeout);
+            if (nStatus < 0)
             {
                 printf("select任务结束,called failed:%d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
                 break;
             }
-
-            // 是否有数据可读
-            // 判断描述符(socket)是否在集合中
-            if (FD_ISSET(listenSocket, &readfds))
+            else if (nStatus == 0)
             {
-                FD_CLR(listenSocket, &readfds);
-
-                // Create a SOCKET for accepting incoming requests.
-                // 4. accept 等待接受客户端连接
-                sockaddr_in clientSockAddr = { 0 };
-                int nclientSockAddrLen = sizeof(sockaddr_in);
-                PPS_SOCKET clientSocket = PPS_INVALID_SOCKET;
-                clientSocket = accept(listenSocket, (sockaddr*)&clientSockAddr, &nclientSockAddrLen);
-                if (PPS_INVALID_SOCKET == clientSocket) {
-                    printf("accept() failed:接收到无效客户端Socket%d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
-                    return 1;
-                }
-                else
-                {
-                    if (nonblock != 0)
-                    {
-                        PPS_SetNonBlock(clientSocket, nonblock);
-                    }
-                    // 有新的客户端加入，向之前的所有客户端群发消息
-                    for (auto& it : clientList)
-                    {
-                        std::string message = "hello";
-                        send(it.first, (const char*)message.data(), message.size(), 0);
-                    }
-
-                    clientList.emplace(clientSocket, SockData(inet_ntoa(clientSockAddr.sin_addr), ntohs(clientSockAddr.sin_port)));
-                    clientList.at(clientSocket).hbtime = time(nullptr);
-                    // 客户端连接成功，则显示客户端连接的IP地址和端口号
-                    printf("新客户端<Sokcet=%d>加入,Ip地址：%s,端口号：%d\n",
-                        clientSocket,
-                        clientList.at(clientSocket).ip.c_str(),
-                        clientList.at(clientSocket).port);
-                    /*std::string message = "hello\n";
-                    send(clientSocket, (const char*)message.data(), message.size(), 0);*/
-                }
+                ;
             }
-
-            for (int i = 0; i < (int)readfds.fd_count; i++)
+            else
             {
-                if ((readfds.fd_array[i] != listenSocket) 
-                    && (Process(readfds.fd_array[i]) == (-1)))
+                for (PPS_SOCKET s = listenSocket; s < maxSocket + 1; s++)
                 {
-                    auto itFind = clientList.find(readfds.fd_array[i]);
-                    if (itFind != clientList.end())
+                    if (s == listenSocket)
                     {
-                        clientList.erase(itFind);
+                        // 是否有数据可读,判断描述符(socket)是否在集合中
+                        if (FD_ISSET(listenSocket, &readfds))
+                        {
+                            FD_CLR(listenSocket, &readfds);
+
+                            // Create a SOCKET for accepting incoming requests.
+                            // 4. accept 等待接受客户端连接
+                            sockaddr_in clientSockAddr = { 0 };
+                            int nclientSockAddrLen = sizeof(sockaddr_in);
+                            PPS_SOCKET clientSocket = PPS_INVALID_SOCKET;
+                            clientSocket = accept(listenSocket, (sockaddr*)&clientSockAddr, (PPS_SOCKLEN_T*)&nclientSockAddrLen);
+                            if (PPS_INVALID_SOCKET == clientSocket) {
+                                printf("accept() failed:接收到无效客户端Socket%d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
+                                return 1;
+                            }
+                            else
+                            {
+                                if (nonblock != 0)
+                                {
+                                    PPS_SetNonBlock(clientSocket, nonblock);
+                                }
+                                // 有新的客户端加入，向之前的所有客户端群发消息
+                                for (auto& it : clientList)
+                                {
+                                    std::string message = "hello";
+                                    send(it.first, (const char*)message.data(), message.size(), 0);
+                                }
+
+                                clientList.emplace(clientSocket, SockData(inet_ntoa(clientSockAddr.sin_addr), ntohs(clientSockAddr.sin_port)));
+                                clientList.at(clientSocket).hbtime = time(nullptr);
+                                // 客户端连接成功，则显示客户端连接的IP地址和端口号
+                                printf("新客户端<Sokcet=%d>加入,Ip地址：%s,端口号：%d\n",
+                                    clientSocket,
+                                    clientList.at(clientSocket).ip.c_str(),
+                                    clientList.at(clientSocket).port);
+                                /*std::string message = "hello\n";
+                                send(clientSocket, (const char*)message.data(), message.size(), 0);*/
+                                maxSocket = maxSocket <= clientSocket ? clientSocket : maxSocket;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // 是否有数据可读,判断描述符(socket)是否在集合中
+                        if (FD_ISSET(s, &readfds))
+                        {
+                            FD_CLR(s, &readfds);
+                            if (Process(s) == (-1))
+                            {
+                                auto itFind = clientList.find(s);
+                                if (itFind != clientList.end())
+                                {
+                                    clientList.erase(itFind);
+                                }
+                            }
+                        }
                     }
                 }
             }
