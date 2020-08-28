@@ -64,47 +64,6 @@ class TcpClient {
         {
             printf("客户端<Socket=%d>收到心跳回复PONG...\n", sock);
         }
-        
-        /*DataHeader* pHeader = (DataHeader*)szRecv;
-        if (recvLen <= 0)
-        {
-            printf("客户端<Socket=%d>已退出，任务结束...", sock);
-            return -1;
-        }
-
-        // 6、处理请求
-        switch (pHeader->cmd)
-        {
-        case CMD_LOGIN:
-        {
-            Login* login = (Login*)szRecv;
-
-            recv(sock, szRecv + sizeof(DataHeader), pHeader->dataLength - sizeof(DataHeader), 0);
-            printf("收到客户端<Socket=%d>请求：CMD_LOGIN, 数据长度：%d, userName：%s Password： %s\n",
-                sock, login->dataLength, login->userName, login->passWord);
-            // 忽略判断用户名和密码是否正确的过程
-            LoginResult ret;
-            send(sock, (char*)&ret, sizeof(LoginResult), 0);
-        }
-        break;
-        case CMD_LOGOUT:
-        {
-            Logout* logout = (Logout*)szRecv;
-
-            recv(sock, szRecv + sizeof(DataHeader), pHeader->dataLength - sizeof(DataHeader), 0);
-            printf("收到客户端<Socket=%d>请求：CMD_LOGOUT, 数据长度：%d, userName：%s\n",
-                sock, logout->dataLength, logout->userName);
-            LogoutResult ret;
-            send(sock, (char*)&ret, sizeof(LogoutResult), 0);
-        }
-        break;
-        default:
-        {
-            DataHeader header = { 0, CMD_ERROR };
-            send(sock, (char*)&header, sizeof(header), 0);
-            break;
-        }
-        }*/
 
         return 0;
     }
