@@ -198,13 +198,13 @@ class TcpServer {
 
 
 public:
-    int TIMER_PUSH_DATA = 20;
+    int TIMER_PUSH_DATA = 5;
     int TIMER_HEART_BEAT = 20;
     bool Timeout(std::time_t t, long time)
     {
         return ((std::time(nullptr) - t) > time);
     }
-    int Start(const std::string& host, uint16_t port = 18001, boolean nonblock = false)
+    int Start(const std::string& host, uint16_t port = 18001, uint8_t nonblock = 0)
     {
         NET_INIT();
 
@@ -215,13 +215,13 @@ public:
         PPS_SOCKET listenSocket = PPS_INVALID_SOCKET;
         listenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
         if (listenSocket == PPS_INVALID_SOCKET) {
-            printf("Error at socket(): %d,%s\n", errno, strerror(errno));
+            printf("Error at socket(): %d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
             return 1;
         }
         u_long nOptVal = 1;
-        if (nonblock)
+        if (nonblock != 0)
         {
-            ioctlsocket(listenSocket, FIONBIO, &nOptVal);
+            PPS_SetNonBlock(listenSocket, nonblock);
         }
         setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR, (const char *)&nOptVal, sizeof(nOptVal));
 
@@ -282,7 +282,9 @@ public:
             }
 
             // 设置超时时间 select 非阻塞
-            timeval timeout = { 1, 0 };
+            timeval timeout = { 0 };
+            timeout.tv_sec = 1;
+            timeout.tv_usec = 0;
 
             // nfds是一个整数值，是指fd_set集合中所有描述符(socket)的范围，而不是数量
             // 即是所有文件描述符最大值+1 在Windows中这个参数可以写0
@@ -311,9 +313,9 @@ public:
                 }
                 else
                 {
-                    if (nonblock)
+                    if (nonblock != 0)
                     {
-                        ioctlsocket(clientSocket, FIONBIO, &nOptVal);
+                        PPS_SetNonBlock(clientSocket, nonblock);
                     }
                     // 有新的客户端加入，向之前的所有客户端群发消息
                     for (auto& it : clientList)

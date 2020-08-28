@@ -3,13 +3,20 @@
 #include <winsock2.h>
 #define PPS_SOCKET SOCKET
 #define PPS_CloseSocket closesocket
+#define PPS_SetNonBlock(socketfd,nonblock) u_long nOptVal_##socketfd=(nonblock==0)?0:1;ioctlsocket(socketfd,FIONBIO,&nOptVal_##socketfd)
 #define PPS_INVALID_SOCKET INVALID_SOCKET
 #define PPS_SOCKET_ERROR SOCKET_ERROR
+#define PPS_EWOULDBLOCK WSAEWOULDBLOCK
+#define PPS_EINPROGRESS WSAEINPROGRESS
 #else
+#include <arpa/inet.h>
 #define PPS_SOCKET int
 #define PPS_CloseSocket close
+#define PPS_SetNonBlock(socketfd,nonblock) int nOptVal_##socketfd=(nonblock==0)?(fcntl(fd,F_GETFL,0)&(~O_NONBLOCK)):(fcntl(fd,F_GETFL,0)|(O_NONBLOCK));fcntl(socketfd,F_SETFL,&nOptVal_##socketfd)
 #define PPS_PPS_INVALID_SOCKET -1
 #define PPS_PPS_SOCKET_ERROR -1
+#define PPS_EWOULDBLOCK EINPROGRESS
+#define PPS_EINPROGRESS EINPROGRESS
 #endif
 
 class WindowSocket {
@@ -100,6 +107,7 @@ public:
 #include <string>
 #include <sstream>
 #include <ctime>
+#include <mutex>
 class SockData {
 public:
     std::string ip;

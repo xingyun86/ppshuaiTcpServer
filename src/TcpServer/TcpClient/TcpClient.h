@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <string>
+#include <shared_mutex>
 #include <iostream>
 #include <mutex>
 #include <sstream>
@@ -54,7 +56,7 @@ class TcpClient {
         if (cmd.compare("quit\r\n") == 0)
         {
             printf("客户端<Socket=%d>已主动退出，任务结束...\n", sock);
-            closesocket(sock);
+            PPS_CloseSocket(sock);
             return -1;
         }
         if (cmd.compare("PONG\r\n") == 0)
@@ -107,14 +109,19 @@ class TcpClient {
     }
 
 public:
-    long TIMER_HEART_BEAT = 20;
+    long TIMER_HEART_BEAT = 10;
     bool Timeout(std::time_t t, long time)
     {
         return ((std::time(nullptr) - t) > time);
     }
-    int Start(const std::string& host, uint16_t port = 18001)
+    int Start(const std::string& host, uint16_t port = 18001, uint8_t nonblock = 0)
     {
         NET_INIT();
+        
+        // Berkeley sockets
+        fd_set readfds = { 0 };			// 描述符(socket)集合
+        fd_set writefds = { 0 };
+        fd_set exceptfds = { 0 };
 
         /* The WinSock DLL is acceptable. Proceed. */
          //----------------------
@@ -123,11 +130,14 @@ public:
         PPS_SOCKET clientSocket = PPS_INVALID_SOCKET;
         clientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
         if (clientSocket == PPS_INVALID_SOCKET) {
-            printf("Error at socket(): %ld\n", WSAGetLastError());
+            printf("Error at socket(): %d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
             return 1;
         }
         u_long nOptVal = 1;
-        //ioctlsocket(listenSocket, FIONBIO, &nOptVal);
+        if (nonblock != 0)
+        {
+            PPS_SetNonBlock(clientSocket, nonblock);
+        }
         setsockopt(clientSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&nOptVal, sizeof(nOptVal));
 
         //----------------------
@@ -138,15 +148,46 @@ public:
         serverSockAddr.sin_addr.s_addr = inet_addr(host.c_str());
         //serverSockAddr.sin_addr.s_addr = INADDR_ANY;
         serverSockAddr.sin_port = htons(port);
-
-        if (connect(clientSocket, (sockaddr*)&serverSockAddr, sizeof(sockaddr_in)) == SOCKET_ERROR) {
-            printf("错误，连接服务器失败...\n");
-            PPS_CloseSocket(clientSocket);
-            return 1;
-        }
-        else
+        if (connect(clientSocket, (sockaddr*)&serverSockAddr, sizeof(sockaddr_in)) == SOCKET_ERROR)
         {
-            printf("连接服务器成功...\n");
+            /*if (NET_ERR_CODE == WSAEISCONN)
+            {
+                printf("连接服务器成功...\n");
+            }*/
+            printf("连接服务器... %d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
+            if (NET_ERR_CODE == PPS_EWOULDBLOCK)
+            {
+                struct timeval timeout;
+                int error;
+                int errorLen = sizeof(int);
+                timeout.tv_sec = 1;
+                timeout.tv_usec = 0;
+                // 清理集合
+                FD_ZERO(&readfds);
+                FD_ZERO(&writefds);
+                FD_ZERO(&exceptfds);
+
+                // 将描述符(socket)加入集合
+                FD_SET(clientSocket, &readfds);
+                FD_SET(clientSocket, &writefds);
+                FD_SET(clientSocket, &exceptfds);
+                if (select((int)clientSocket + 1, &readfds, &writefds, &exceptfds, &timeout) > 0) 
+                {
+                    getsockopt(clientSocket, SOL_SOCKET, SO_ERROR, (char *)&error, (int*)&errorLen);
+                    if (error != 0)
+                    {
+                        printf("连接服务器失败... %d\n", error);
+                        PPS_CloseSocket(clientSocket);
+                        return (1);
+                    }
+                }
+                else { 
+                    //timeout or select error
+                    printf("连接服务器超时失败...\n");
+                    PPS_CloseSocket(clientSocket);
+                    return (1);
+                }
+            }
         }
 
         printf("客户端连接服务器成功...\n");
@@ -155,11 +196,6 @@ public:
 
         while (true)
         {
-            // Berkeley sockets
-            fd_set readfds = { 0 };			// 描述符(socket)集合
-            fd_set writefds = { 0 };
-            fd_set exceptfds = { 0 };
-
             // 清理集合
             FD_ZERO(&readfds);
             FD_ZERO(&writefds);
@@ -171,7 +207,9 @@ public:
             FD_SET(clientSocket, &exceptfds);
 
             // 设置超时时间 select 非阻塞
-            timeval timeout = { 1, 0 };
+            timeval timeout = { 0 };
+            timeout.tv_sec = 1;
+            timeout.tv_usec = 0;
 
             // nfds是一个整数值，是指fd_set集合中所有描述符(socket)的范围，而不是数量
             // 即是所有文件描述符最大值+1 在Windows中这个参数可以写0

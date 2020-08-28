@@ -8,6 +8,6 @@ using namespace std;
 int main(int argc, char ** argv)
 {
 	cout << "Hello CMake." << endl;
-	TcpServer::Inst()->Start("0.0.0.0", 18001, false);
+	TcpServer::Inst()->Start("0.0.0.0", 18001, true);
 	return 0;
 }
