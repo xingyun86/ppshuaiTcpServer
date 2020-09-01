@@ -30,6 +30,7 @@
 #endif
 
 class WindowSocket {
+#define PPS_INET_NTOA    WindowSocket::inet_ntoa
 #define NET_INIT()       WindowSocket::Init()
 #define NET_ERR_CODE     WindowSocket::ErrorCode()
 #define NET_ERR_STR(err) WindowSocket::ErrorString(err)
@@ -40,6 +41,14 @@ public:
     WSADATA wsadata = { 0 };
     bool bInitializeSuccessful = false;
 #endif // _MSC_VER
+    static char* inet_ntoa(char* addr, int size, struct in_addr in)
+    {
+        if (size >= 16)
+        {
+            sprintf(addr, ("%d.%d.%d.%d"), ((uint8_t*)&in.s_addr)[0], ((uint8_t*)&in.s_addr)[1], ((uint8_t*)&in.s_addr)[2], ((uint8_t*)&in.s_addr)[3]);
+        }
+        return addr;
+    }
 
     WindowSocket() {
 #ifdef _MSC_VER

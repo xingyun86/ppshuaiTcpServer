@@ -83,6 +83,7 @@ public:
         int nSockOptLen = sizeof(nSockOpt);
 
         u_long nOptVal = 1;
+        char ip[16] = { 0 };
         // Berkeley sockets
         fd_set readfds = { 0 };			// 描述符(socket)集合
         fd_set writefds = { 0 };
@@ -165,7 +166,7 @@ public:
             }
         }
         
-        clientList.emplace(clientSocket, SockData(inet_ntoa(nameSockAddr.sin_addr), ntohs(nameSockAddr.sin_port)));
+        clientList.emplace(clientSocket, SockData(PPS_INET_NTOA(ip, sizeof(ip)/sizeof(*ip), nameSockAddr.sin_addr), ntohs(nameSockAddr.sin_port)));
         clientList.at(clientSocket).hbtime = time(nullptr);
 
         printf("客户端连接服务器成功...\n");

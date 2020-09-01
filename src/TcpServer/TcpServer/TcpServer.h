@@ -42,6 +42,7 @@ public:
         return &taskHandlerInstance;
     }
 };
+#pragma pack(1)
 typedef struct PacketHeader {
     uint16_t type;
     uint32_t size;
@@ -50,6 +51,7 @@ typedef struct PacketStruct {
     PacketHeader head;
     uint8_t * data;
 };
+#pragma pack()
 class TcpServer {
     std::unordered_map<PPS_SOCKET, SockData> clientList;
 
@@ -170,6 +172,7 @@ public:
 
         int nStatus = 0;
         u_long nOptVal = 1;
+        char ip[16] = { 0 };
         // Berkeley sockets
         fd_set readfds = { 0 };			// 描述符(socket)集合
         fd_set writefds = { 0 };
@@ -294,7 +297,7 @@ public:
                                     send(it.first, (const char*)message.data(), message.size(), 0);
                                 }
 
-                                clientList.emplace(clientSocket, SockData(inet_ntoa(clientSockAddr.sin_addr), ntohs(clientSockAddr.sin_port)));
+                                clientList.emplace(clientSocket, SockData(PPS_INET_NTOA(ip, sizeof(ip)/sizeof(*ip), clientSockAddr.sin_addr), ntohs(clientSockAddr.sin_port)));
                                 clientList.at(clientSocket).hbtime = time(nullptr);
                                 // 客户端连接成功，则显示客户端连接的IP地址和端口号
                                 printf("新客户端<Sokcet=%d>加入,Ip地址：%s,端口号：%d\n",
