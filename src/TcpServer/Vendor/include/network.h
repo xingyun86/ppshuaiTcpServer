@@ -1,6 +1,7 @@
 
 #ifdef _MSC_VER
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #define PPS_SOCKET SOCKET
 #define PPS_SOCKLEN_T int
 #define PPS_SOCKOPT_T char
@@ -10,6 +11,7 @@
 #define PPS_SOCKET_ERROR SOCKET_ERROR
 #define PPS_EWOULDBLOCK WSAEWOULDBLOCK
 #define PPS_EINPROGRESS WSAEINPROGRESS
+#define PPS_Sleep(X) Sleep(X)
 #else
 #include <fcntl.h>
 #include <unistd.h>
@@ -27,10 +29,11 @@
 #define PPS_SOCKET_ERROR -1
 #define PPS_EWOULDBLOCK EINPROGRESS
 #define PPS_EINPROGRESS EINPROGRESS
+#define PPS_Sleep(X) usleep(X*1000)
 #endif
 
 class WindowSocket {
-#define PPS_INET_NTOA    WindowSocket::inet_ntoa
+#define PPS_INET_NTOA_IPV4 WindowSocket::inet_ntoa_ipv4
 #define NET_INIT()       WindowSocket::Init()
 #define NET_ERR_CODE     WindowSocket::ErrorCode()
 #define NET_ERR_STR(err) WindowSocket::ErrorString(err)
@@ -41,7 +44,7 @@ public:
     WSADATA wsadata = { 0 };
     bool bInitializeSuccessful = false;
 #endif // _MSC_VER
-    static char* inet_ntoa(char* addr, int size, struct in_addr in)
+    static char* inet_ntoa_ipv4(char* addr, int size, struct in_addr in)
     {
         if (size >= 16)
         {

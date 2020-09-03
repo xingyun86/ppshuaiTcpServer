@@ -297,7 +297,7 @@ public:
                                     send(it.first, (const char*)message.data(), message.size(), 0);
                                 }
 
-                                clientList.emplace(clientSocket, SockData(PPS_INET_NTOA(ip, sizeof(ip)/sizeof(*ip), clientSockAddr.sin_addr), ntohs(clientSockAddr.sin_port)));
+                                clientList.emplace(clientSocket, SockData(PPS_INET_NTOA_IPV4(ip, sizeof(ip)/sizeof(*ip), clientSockAddr.sin_addr), ntohs(clientSockAddr.sin_port)));
                                 clientList.at(clientSocket).hbtime = time(nullptr);
                                 // 客户端连接成功，则显示客户端连接的IP地址和端口号
                                 printf("新客户端<Sokcet=%d>加入,Ip地址：%s,端口号：%d\n",

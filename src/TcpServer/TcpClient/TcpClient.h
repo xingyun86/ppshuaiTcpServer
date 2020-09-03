@@ -166,7 +166,7 @@ public:
             }
         }
         
-        clientList.emplace(clientSocket, SockData(PPS_INET_NTOA(ip, sizeof(ip)/sizeof(*ip), nameSockAddr.sin_addr), ntohs(nameSockAddr.sin_port)));
+        clientList.emplace(clientSocket, SockData(PPS_INET_NTOA_IPV4(ip, sizeof(ip)/sizeof(*ip), nameSockAddr.sin_addr), ntohs(nameSockAddr.sin_port)));
         clientList.at(clientSocket).hbtime = time(nullptr);
 
         printf("客户端连接服务器成功...\n");
