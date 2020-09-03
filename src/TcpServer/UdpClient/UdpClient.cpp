@@ -20,6 +20,14 @@ int do_send_groupcast(const char* ip, const char* group_ip = "239.2.2.2", const 
 		return 1;
 	}
 	nOptVal = 255; // TTL[0,255]
+	///////////////////////////////////////////////////////////
+	//0 restricted to the same host
+	//1 restricted to the same subnet
+	//32 restricted to the same site
+	//64 restricted to the same region
+	//128 restricted to the same continent
+	//255 unrestricted
+	///////////////////////////////////////////////////////////
 	nRet = setsockopt(sock, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&nOptVal, sizeof(nOptVal));
 	if (nRet != 0) {
 		printf("setsockopt fail:%d(%s)", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE));
