@@ -17,7 +17,7 @@ link_directories(
 IF(MSVC)
 set (MSVC_LIBS ws2_32)
 ELSE()
-set (MSVC_LIBS )
+set(MSVC_LIBS pthread)
 ENDIF(MSVC)
 
 # Add source to this project's executable.

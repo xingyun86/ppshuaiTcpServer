@@ -17,6 +17,7 @@ link_directories(
 if(MSVC)
 set(MSVC_LIBS ws2_32)
 else(MSVC)
+set(MSVC_LIBS pthread)
 endif(MSVC)
 # Add source to this project's executable.
 add_executable (${project_name} "UdpServer.cpp" "UdpServer.h")

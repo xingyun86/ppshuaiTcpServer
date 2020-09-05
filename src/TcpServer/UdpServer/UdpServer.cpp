@@ -3,7 +3,6 @@
 
 #include "UdpServer.h"
 
-#include <winsock2.h>
 #include <thread>
 #include <vector>
 
@@ -25,8 +24,8 @@ int do_recv_groupcast(const char* ip, const char * group_ip="239.2.2.2", const u
 	sockaddr_in nameSockAddr = { 0 };
 	int nameSockAddrSize = sizeof(nameSockAddr);
 	nameSockAddr.sin_family = AF_INET;
-	//nameSockAddr.sin_addr.S_un.S_addr = INADDR_ANY;
-	nameSockAddr.sin_addr.S_un.S_addr = inet_addr(ip);
+	//nameSockAddr.sin_addr.s_addr = INADDR_ANY;
+	nameSockAddr.sin_addr.s_addr = inet_addr(ip);
 	nameSockAddr.sin_port = htons(port);
 
 	nOptVal = 255; // TTL[0,255]
@@ -83,7 +82,7 @@ int do_recv_groupcast(const char* ip, const char * group_ip="239.2.2.2", const u
 	while (true)
 	{
 		memset(recv_data, 0, recv_size);
-		nRet = recvfrom(sock, (char *)recv_data, recv_size, 0, (sockaddr*)&recvSockAddr, &recvSockAddrSize);
+		nRet = recvfrom(sock, (char *)recv_data, recv_size, 0, (sockaddr*)&recvSockAddr, (PPS_SOCKLEN_T*)&recvSockAddrSize);
 		if (nRet <= 0) {
 			printf("recvfrom fail:%d(%s)", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE));
 			return -1;
@@ -127,7 +126,7 @@ int do_recv_broadcast(const char* ip, const uint16_t port = 0x1936)
 	int iMax = 100;
 	while (i++ < iMax)
 	{
-		int recvBytes = recvfrom(recvSocket, (char*)recv_data, recv_size, 0, (sockaddr*)&recvSockAddr, &recvSockAddrSize);
+		int recvBytes = recvfrom(recvSocket, (char*)recv_data, recv_size, 0, (sockaddr*)&recvSockAddr, (PPS_SOCKLEN_T*)&recvSockAddrSize);
 		printf("recvfrom [%d] packet bytes=%d!\n", i, recvBytes);
 		//sendto(recvSocket, (const char*)recv_data, recv_size, 0, (const sockaddr*)&fromAddr, fromAddrSize);
 		std::this_thread::sleep_for(std::chrono::microseconds(1000));

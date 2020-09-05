@@ -20,6 +20,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
+#include <netdb.h>
 #define PPS_SOCKET int
 #define PPS_SOCKLEN_T socklen_t
 #define PPS_SOCKOPT_T void

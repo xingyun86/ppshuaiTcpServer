@@ -138,7 +138,7 @@ int do_send_broadcast(const char * ip, uint16_t port=0x1936)
 
 int run()
 {
-	char hostname[_MAX_FNAME] = { 0 };
+	char hostname[256] = { 0 };
 	std::vector<std::thread> task_list;
 	gethostname(hostname, sizeof(hostname));    //获得本地主机名
 	struct hostent * hostinfo = gethostbyname(hostname);//信息结构体
