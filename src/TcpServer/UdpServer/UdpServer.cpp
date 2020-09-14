@@ -75,9 +75,9 @@ int do_recv_groupcast(const char* ip, const char * group_ip="239.2.2.2", const u
 	}
 
 	printf("udp group start\n");
-	uint16_t send_size = 1024;
+	uint32_t send_size = WindowSocket::Inst()->nSendDataSize;
 	uint8_t* send_data = new uint8_t[send_size]();
-	uint16_t recv_size = 1024;
+	uint32_t recv_size = WindowSocket::Inst()->nRecvDataSize;
 	uint8_t* recv_data = new uint8_t[recv_size]();
 	while (true)
 	{
@@ -118,9 +118,9 @@ int do_recv_broadcast(const char* ip, const uint16_t port = 0x1936)
 	//从服务器接收数据报
 	printf("Recving a datagram from the sender...\n");
 
-	uint16_t send_size = 1024;
+	uint32_t send_size = WindowSocket::Inst()->nSendDataSize;
 	uint8_t* send_data = new uint8_t[send_size]();
-	uint16_t recv_size = 1024;
+	uint32_t recv_size = WindowSocket::Inst()->nRecvDataSize;
 	uint8_t* recv_data = new uint8_t[recv_size]();
 	int i = 0;
 	int iMax = 100;

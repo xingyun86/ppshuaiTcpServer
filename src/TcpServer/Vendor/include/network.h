@@ -34,18 +34,21 @@
 #endif
 
 class WindowSocket {
-#define PPS_INET_NTOA_IPV4 WindowSocket::inet_ntoa_ipv4
-#define NET_INIT()       WindowSocket::Init()
-#define NET_ERR_CODE     WindowSocket::ErrorCode()
-#define NET_ERR_STR(err) WindowSocket::ErrorString(err)
+#define PPS_INET_NTOA_IPV4 WindowSocket::Inst()->inet_ntoa_ipv4
+#define NET_INIT()       WindowSocket::Inst()->Init()
+#define NET_ERR_CODE     WindowSocket::Inst()->ErrorCode()
+#define NET_ERR_STR(err) WindowSocket::Inst()->ErrorString(err)
 public:
+    INT nSendDataSize = 102400;
+    INT nRecvDataSize = 102400;
+
 #ifdef _MSC_VER
     WORD wHVer = 0x02;
     WORD wLVer = 0x02;
     WSADATA wsadata = { 0 };
     bool bInitializeSuccessful = false;
 #endif // _MSC_VER
-    static char* inet_ntoa_ipv4(char* addr, int size, struct in_addr in)
+    char* inet_ntoa_ipv4(char* addr, int size, struct in_addr in)
     {
         if (size >= 16)
         {
@@ -78,15 +81,15 @@ public:
 #endif
     }
 
-    static std::string ErrorString(unsigned long nErrorCode)
+    std::string ErrorString(unsigned long nErrorCode)
     {
         // Retrieve the system error message for the last-error code
         std::string err("");
 #ifdef _MSC_VER
         LPVOID lpMsgBuf = NULL;
         LPVOID lpDisplayBuf = NULL;
-
-        FormatMessageA(
+        DWORD dwMsgBufLen = 0L;
+        dwMsgBufLen = FormatMessageA(
             FORMAT_MESSAGE_ALLOCATE_BUFFER |
             FORMAT_MESSAGE_FROM_SYSTEM |
             FORMAT_MESSAGE_IGNORE_INSERTS,
@@ -98,7 +101,7 @@ public:
         if (lpMsgBuf != NULL)
         {
             // Display the error message and exit the process
-            err.assign((LPCTSTR)lpMsgBuf, strlen((LPCTSTR)lpMsgBuf));
+            err.assign((LPCSTR)lpMsgBuf, dwMsgBufLen);
 
             LocalFree(lpMsgBuf);
             lpMsgBuf = NULL;
@@ -108,7 +111,7 @@ public:
 #endif // _MSC_VER
         return err;
     }
-    static unsigned long ErrorCode()
+    unsigned long ErrorCode()
     {
 #ifdef _MSC_VER
         return WSAGetLastError();
@@ -117,14 +120,19 @@ public:
 #endif // _MSC_VER
     }
     // Return parameter: false-init failure,true-init success
-    static bool Init() {
+    bool Init() {
 #ifdef _MSC_VER
-        static WindowSocket windowSocket;
-        return windowSocket.bInitializeSuccessful;
+        return bInitializeSuccessful;
 #else
         return true;
 #endif
     };
+public:
+    static WindowSocket* Inst()
+    {
+        static WindowSocket windowSocketInstance;
+        return &windowSocketInstance;
+    }
 };
 
 #include <string>

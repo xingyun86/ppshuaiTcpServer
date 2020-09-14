@@ -50,9 +50,9 @@ int do_send_groupcast(const char* ip, const char* group_ip = "239.2.2.2", const 
 	nameSockAddr.sin_family = AF_INET;
 	nameSockAddr.sin_port = htons(port);
 
-	uint16_t send_size = 1024;
+	uint32_t send_size = WindowSocket::Inst()->nSendDataSize;
 	uint8_t* send_data = new uint8_t[send_size]();
-	uint16_t recv_size = 1024;
+	uint32_t recv_size = WindowSocket::Inst()->nRecvDataSize;
 	uint8_t* recv_data = new uint8_t[recv_size]();
 	int iIdx = 0;
 	while (1)
@@ -112,9 +112,9 @@ int do_send_broadcast(const char * ip, uint16_t port=0x1936)
 	//向服务器发送数据报
 	printf("Sending a datagram to the receiver...\n");
 
-	uint16_t send_size = 1024;
+	uint32_t send_size = WindowSocket::Inst()->nSendDataSize;
 	uint8_t* send_data = new uint8_t[send_size]();
-	uint16_t recv_size = 1024;
+	uint32_t recv_size = WindowSocket::Inst()->nRecvDataSize;
 	uint8_t* recv_data = new uint8_t[recv_size]();
 	int i = 0;
 	int iMax = 10;
