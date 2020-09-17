@@ -8,11 +8,26 @@ using namespace std;
 int main(int argc, char ** argv)
 {
 	cout << "Hello CMake." << endl;
-	auto host = "192.168.182.128";// "127.0.0.1";
-	if (argc == 2)
+	auto host = "127.0.0.1";
+	auto port = 1234;
+	for (int i = 1; i < argc; i++)
 	{
-		host = argv[1];
+		if (strlen(argv[i]) > 2 && *(argv[i]) == '-')
+		{
+			switch (*(argv[i] + 1))
+			{
+			case 'h':
+			case 'H':
+				host = argv[i] + 2; 
+				break;
+			case 'p':
+			case 'P':
+				port = atoi(argv[i] + 2); 
+				break;
+			}
+		}
 	}
-	TcpClient::Inst()->Start(host, 18001, true);
+		
+	TcpClient::Inst()->Start(host, port, false);
 	return 0;
 }

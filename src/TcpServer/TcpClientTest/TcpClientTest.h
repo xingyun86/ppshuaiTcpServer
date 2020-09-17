@@ -58,7 +58,7 @@ class TcpClient {
         memcpy(data+ sizeof(APU_PF_HEADER), reqJson, h->len);
         send(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
         clientList.at(sock).hbtime = time(nullptr);
-        printf("Request Heartbeat%lld\n", clientList.at(sock).hbtime);
+        printf("Request Heartbeat %lld\n", clientList.at(sock).hbtime);
         return 0;
     }
     int ReqAnchor(PPS_SOCKET sock)
@@ -72,7 +72,7 @@ class TcpClient {
         memcpy(data + sizeof(APU_PF_HEADER), reqJson, h->len);
         send(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
         //clientList.at(sock).hbtime = time(nullptr);
-        printf("Request Heartbeat%lld\n", clientList.at(sock).hbtime);
+        printf("Request Heartbeat %lld\n", clientList.at(sock).hbtime);
         return 0;
     }
     int ReqTag(PPS_SOCKET sock)
@@ -86,7 +86,7 @@ class TcpClient {
         memcpy(data + sizeof(APU_PF_HEADER), reqJson, h->len);
         send(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
         //clientList.at(sock).hbtime = time(nullptr);
-        printf("Request Heartbeat%lld\n", clientList.at(sock).hbtime);
+        printf("Request Heartbeat %lld\n", clientList.at(sock).hbtime);
         return 0;
     }
     int ReqHeartBeat(PPS_SOCKET sock)
@@ -94,7 +94,7 @@ class TcpClient {
         std::string message = "PING\r\n";
         send(sock, (const char*)message.data(), message.size(), 0);
         clientList.at(sock).hbtime = time(nullptr);
-        printf("Request Heartbeat%lld\n", clientList.at(sock).hbtime);
+        printf("Request Heartbeat %lld\n", clientList.at(sock).hbtime);
         return 0;
     }
     int RespHeartBeat(PPS_SOCKET sock)
@@ -102,7 +102,7 @@ class TcpClient {
         std::string message = "PONG\r\n";
         send(sock, (const char*)message.data(), message.size(), 0);
         clientList.at(sock).hbtime = time(nullptr);
-        printf("Request Heartbeat%lld\n", clientList.at(sock).hbtime);
+        printf("Request Heartbeat %lld\n", clientList.at(sock).hbtime);
         return 0;
     }
     int Process(PPS_SOCKET sock)
@@ -115,16 +115,16 @@ class TcpClient {
         int recvLen = recv(sock, szRecv, sizeof(szRecv), 0);
         if (recvLen <= 0)
         {
-            printf("客户端<Socket=%d>已退出，任务结束...\n", sock);
+            printf("Client<Socket=%d>exited,task completed...\n", sock);
             return -1;
         }
-        printf("收到服务端<Socket=%d> 数据长度：%d(%.*s)\n", sock, recvLen, recvLen, szRecv);
+        printf("Receive data from server<Socket=%d> DataLen=%d(%.*s)\n", sock, recvLen, recvLen, szRecv);
         {
             if (recvLen > sizeof(APU_PF_HEADER))
             {
                 APU_PF_HEADER* head = (APU_PF_HEADER*)szRecv;
                 std::string data(szRecv + sizeof(APU_PF_HEADER), head->len);
-                printf("收到服务端<Socket=%d> 数据长度：type=%d,mask=%d,len=%d(%.*s)\n", sock, head->type, head->mask, head->len, (int)data.size(), data.data());
+                printf("Receive data from server<Socket=%d> Data: type=%d,mask=%d,len=%d(%.*s)\n", sock, head->type, head->mask, head->len, (int)data.size(), data.data());
             }
         }
         clientList.at(sock).locker->lock();
@@ -138,13 +138,13 @@ class TcpClient {
         clientList.at(sock).locker->unlock();
         if (cmd.compare("quit\r\n") == 0)
         {
-            printf("客户端<Socket=%d>已主动退出，任务结束...\n", sock);
+            printf("Client<Socket=%d>exited itself,task completed...\n", sock);
             PPS_CloseSocket(sock);
             return -1;
         }
         if (cmd.compare("PONG\r\n") == 0)
         {
-            printf("客户端<Socket=%d>收到心跳回复PONG...\n", sock);
+            printf("Client<Socket=%d>receive heartbeat response PONG...\n", sock);
         }
 
         return 0;
@@ -219,14 +219,14 @@ public:
                 if (nStatus < 0)
                 {
                     //timeout or select error
-                    printf("连接服务器失败...\n");
+                    printf("Connect to server failed...\n");
                     PPS_CloseSocket(clientSocket);
                     return (1);
                 }
                 else if (nStatus == 0)
                 {
                     //timeout or select error
-                    printf("连接服务器超时失败...\n");
+                    printf("Connect to server timeout...\n");
                     PPS_CloseSocket(clientSocket);
                     return (1);
                 }
@@ -235,7 +235,7 @@ public:
                     getsockopt(clientSocket, SOL_SOCKET, SO_ERROR, (PPS_SOCKOPT_T*)&nSockOpt, (PPS_SOCKLEN_T*)&nSockOptLen);
                     if (nSockOpt != 0)
                     {
-                        printf("连接服务器失败... %d\n", nSockOpt);
+                        printf("Connect to server failed... %d\n", nSockOpt);
                         PPS_CloseSocket(clientSocket);
                         return (1);
                     }
@@ -243,7 +243,7 @@ public:
             }
             else
             {
-                printf("连接服务器失败... %d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
+                printf("Connect to server failed... %d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
                 return (1);
             }
         }
@@ -251,7 +251,7 @@ public:
         clientList.emplace(clientSocket, SockData(PPS_INET_NTOA_IPV4(ip, sizeof(ip)/sizeof(*ip), nameSockAddr.sin_addr), ntohs(nameSockAddr.sin_port)));
         clientList.at(clientSocket).hbtime = time(nullptr);
 
-        printf("客户端连接服务器成功...\n");
+        printf("Connect to server ok!\n");
 
         maxSocket = clientSocket;
 
@@ -271,12 +271,12 @@ public:
             timeout.tv_sec = 1;
             timeout.tv_usec = 0;
 
-            // nfds是一个整数值，是指fd_set集合中所有描述符(socket)的范围，而不是数量
+            // nfds是一个整数值,是指fd_set集合中所有描述符(socket)的范围,而不是数量
             // 即是所有文件描述符最大值+1 在Windows中这个参数可以写0
             nStatus = select((int)maxSocket + 1, &readfds, &writefds, &exceptfds, &timeout);
             if (nStatus < 0)
             {
-                printf("select任务结束,called failed:%d, %s!\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE));
+                printf("select task complete,called failed:%d, %s!\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE));
                 break;
             }
             else  if (nStatus == 0)
@@ -316,7 +316,7 @@ public:
         // 8.关闭套接字
         PPS_CloseSocket(clientSocket);
 
-        printf("客户端已退出，任务结束\n");
+        printf("client exited, task completed!\n");
 
         getchar();
 

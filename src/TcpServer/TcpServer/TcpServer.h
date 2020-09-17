@@ -88,10 +88,10 @@ class TcpServer {
         int recvLen = recv(sock, szRecv, sizeof(szRecv), 0);
         if (recvLen <= 0)
         {
-            printf("客户端<Socket=%d>已退出，任务结束...\n", sock);
+            printf("Client<Socket=%d>exited，task completed...\n", sock);
             return -1;
         }
-        printf("收到客户端<Socket=%d> 数据长度：%d(%.*s)\n", sock, recvLen, recvLen, szRecv);
+        printf("Receive data from server<Socket=%d> DataLen=%d(%.*s)\n", sock, recvLen, recvLen, szRecv);
         clientList.at(sock).locker->lock();
         clientList.at(sock).ss.write(szRecv, recvLen);
         cmd.assign(clientList.at(sock).ss.str());
@@ -103,7 +103,7 @@ class TcpServer {
         clientList.at(sock).locker->unlock();
         if (cmd.compare("quit\r\n") == 0)
         {
-            printf("客户端<Socket=%d>已主动退出，任务结束...\n", sock);
+            printf("Client<Socket=%d>exited itself，task completed...\n", sock);
             PPS_CloseSocket(sock);
             return -1;
         }
@@ -206,29 +206,29 @@ public:
         nameSockAddr.sin_port = htons(port);
 
         if (bind(listenSocket, (const sockaddr *)&nameSockAddr, (int)sizeof(nameSockAddr)) == PPS_SOCKET_ERROR) {
-            printf("bind() failed.绑定网络端口失败:%d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
+            printf("bind() failed. Error:%d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
             PPS_CloseSocket(listenSocket);
             return 1;
         }
         else
         {
-            printf("绑定网络端口成功...\n");
+            printf("Bind ok!\n");
         }
 
         //----------------------
         // Listen for incoming connection requests.
         // on the created socket
         if (listen(listenSocket, 5) == PPS_SOCKET_ERROR) {
-            printf("错误，监听网络端口失败...%d,%s)\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
+            printf("Listen failed.Error:%d,%s)\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
             PPS_CloseSocket(listenSocket);
             return 1;
         }
         else
         {
-            printf("监听网络端口成功...\n");
+            printf("Listen ok!\n");
         }
 
-        printf("等待客户端连接...\n");
+        printf("Wait client connect...\n");
         maxSocket = listenSocket;
         while (true)
         {
@@ -256,7 +256,7 @@ public:
             nStatus = select((int)maxSocket + 1, &readfds, &writefds, &exceptfds, &timeout);
             if (nStatus < 0)
             {
-                printf("select任务结束,called failed:%d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
+                printf("select task complete,called failed:%d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
                 break;
             }
             else if (nStatus == 0)
@@ -281,7 +281,7 @@ public:
                             PPS_SOCKET clientSocket = PPS_INVALID_SOCKET;
                             clientSocket = accept(listenSocket, (sockaddr*)&clientSockAddr, (PPS_SOCKLEN_T*)&nclientSockAddrLen);
                             if (PPS_INVALID_SOCKET == clientSocket) {
-                                printf("accept() failed:接收到无效客户端Socket%d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
+                                printf("accept() failed:invalid client, Socket%d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
                                 return 1;
                             }
                             else
@@ -290,7 +290,7 @@ public:
                                 {
                                     PPS_SetNonBlock(clientSocket, nonblock);
                                 }
-                                // 有新的客户端加入，向之前的所有客户端群发消息
+                                // 有新的客户端加入,向之前的所有客户端群发消息
                                 for (auto& it : clientList)
                                 {
                                     std::string message = "hello";
@@ -299,7 +299,7 @@ public:
 
                                 clientList.emplace(clientSocket, SockData(PPS_INET_NTOA_IPV4(ip, sizeof(ip)/sizeof(*ip), clientSockAddr.sin_addr), ntohs(clientSockAddr.sin_port)));
                                 clientList.at(clientSocket).hbtime = time(nullptr);
-                                // 客户端连接成功，则显示客户端连接的IP地址和端口号
+                                // 客户端连接成功,则显示客户端连接的IP地址和端口号
                                 printf("新客户端<Sokcet=%d>加入,Ip地址：%s,端口号：%d\n",
                                     clientSocket,
                                     clientList.at(clientSocket).ip.c_str(),
@@ -333,7 +333,7 @@ public:
             {
                 if (Timeout(it->second.hbtime, TIMER_HEART_BEAT))
                 {
-                    printf("客户端<Socket=%d>心跳超时已退出，任务结束...\n", it->first);
+                    printf("Client<Socket=%d>heartbeat timeout exit, task completed...\n", it->first);
                     PPS_CloseSocket(it->first);
                     it = clientList.erase(it);
                 }
@@ -357,7 +357,7 @@ public:
         // 8.关闭套接字
         PPS_CloseSocket(listenSocket);
 
-        printf("服务端已退出，任务结束\n");
+        printf("server exited, task completed!\n");
 
         getchar();
 
