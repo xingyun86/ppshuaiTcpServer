@@ -18,6 +18,9 @@ typedef enum
     APU_PACKET_HEARTBEAT = 0x0,
     APU_PACKET_GET_CONFIG = 0x1,
     APU_PACKET_SET_CONFIG = 0x2,
+    APU_PACKET_ADD_CONFIG = 0x3,
+    APU_PACKET_DEL_CONFIG = 0x4,
+    APU_PACKET_MOD_CONFIG = 0x5,
 } APU_PACKET_TYPE;
 
 typedef enum {
@@ -31,13 +34,15 @@ typedef enum {
     APU_CONFIG_MAXIMUM,
 } APU_CONFIG_TYPE;
 
-typedef enum
-{
-    AS_OFF = 0x0,
-    AS_INIT = 0x1,
-    AS_ON = 0x2,
-    AS_ERROR = 0x3,
-}APU_STATE;
+typedef enum {
+    FSM_CLOSE = 0,
+    FSM_STARTING,
+    FSM_WAITING,
+    FSM_CALIBRATION,
+    FSM_WORKING,
+    FSM_ERROR,
+}FSM;
+
 typedef struct
 {
     uint16_t type; ////APU_PACKET_TYPE
@@ -50,7 +55,7 @@ class TcpClient {
     int ReqGlobal(PPS_SOCKET sock)
     {
         char data[4096] = { 0 };
-        const char* reqJson = "{\"seq\":\"1\"}";
+        const char* reqJson = R"({"seq":"Global1"})";
         APU_PF_HEADER* h = (APU_PF_HEADER*)data;
         h->type = APU_PACKET_TYPE::APU_PACKET_GET_CONFIG;
         h->mask = APU_CONFIG_TYPE::APU_CONFIG_GLOBAL;
@@ -64,29 +69,98 @@ class TcpClient {
     int ReqAnchor(PPS_SOCKET sock)
     {
         char data[4096] = { 0 };
-        const char* reqJson = "{\"seq\":\"1\"}";
+        const char* reqJson = R"({"seq":"Anchor1"})";
         APU_PF_HEADER* h = (APU_PF_HEADER*)data;
         h->type = APU_PACKET_TYPE::APU_PACKET_GET_CONFIG;
         h->mask = APU_CONFIG_TYPE::APU_CONFIG_ANCHOR;
         h->len = strlen(reqJson);
         memcpy(data + sizeof(APU_PF_HEADER), reqJson, h->len);
         send(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
-        //clientList.at(sock).hbtime = time(nullptr);
-        printf("Request Heartbeat %lld\n", clientList.at(sock).hbtime);
+        printf("%s completed!\n", __func__);
         return 0;
     }
     int ReqTag(PPS_SOCKET sock)
     {
         char data[4096] = { 0 };
-        const char* reqJson = "{\"seq\":\"1\"}";
+        const char* reqJson = R"({"seq":"Tag1"})";
         APU_PF_HEADER* h = (APU_PF_HEADER*)data;
         h->type = APU_PACKET_TYPE::APU_PACKET_GET_CONFIG;
         h->mask = APU_CONFIG_TYPE::APU_CONFIG_TAG;
         h->len = strlen(reqJson);
         memcpy(data + sizeof(APU_PF_HEADER), reqJson, h->len);
         send(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
-        //clientList.at(sock).hbtime = time(nullptr);
-        printf("Request Heartbeat %lld\n", clientList.at(sock).hbtime);
+        printf("%s completed!\n", __func__);
+        return 0;
+    }
+    int ReqFixture(PPS_SOCKET sock)
+    {
+        char data[4096] = { 0 };
+        const char* reqJson = R"({"seq":"Fixture1"})";
+        APU_PF_HEADER* h = (APU_PF_HEADER*)data;
+        h->type = APU_PACKET_TYPE::APU_PACKET_GET_CONFIG;
+        h->mask = APU_CONFIG_TYPE::APU_CONFIG_FIXTURE;
+        h->len = strlen(reqJson);
+        memcpy(data + sizeof(APU_PF_HEADER), reqJson, h->len);
+        send(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
+        printf("%s completed!\n", __func__);
+        return 0;
+    }
+    int ReqFollow(PPS_SOCKET sock)
+    {
+        char data[4096] = { 0 };
+        const char* reqJson = R"({"seq":"Follow1"})";
+        APU_PF_HEADER* h = (APU_PF_HEADER*)data;
+        h->type = APU_PACKET_TYPE::APU_PACKET_GET_CONFIG;
+        h->mask = APU_CONFIG_TYPE::APU_CONFIG_FOLLOW;
+        h->len = strlen(reqJson);
+        memcpy(data + sizeof(APU_PF_HEADER), reqJson, h->len);
+        send(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
+        printf("%s completed!\n", __func__);
+        return 0;
+    }
+    int ReqUpdateMode(PPS_SOCKET sock)
+    {
+        char data[4096] = { 0 };
+        const char* reqJson = R"({"seq":"UpdateMode1","state":3})";
+        APU_PF_HEADER* h = (APU_PF_HEADER*)data;
+        h->type = APU_PACKET_TYPE::APU_PACKET_MOD_CONFIG;
+        h->mask = APU_CONFIG_TYPE::APU_CONFIG_GLOBAL;
+        h->len = strlen(reqJson);
+        memcpy(data + sizeof(APU_PF_HEADER), reqJson, h->len);
+        send(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
+        printf("%s completed!\n", __func__);
+        return 0;
+    }
+    bool addFixture = false;
+    int ReqAddFixture(PPS_SOCKET sock)
+    {
+        if (addFixture)
+        {
+            return 0;
+        }
+        addFixture = true;
+        char data[4096] = { 0 };
+        const char* reqJson = R"({
+            "seq":"AddFixture1",
+            "TagID": 1346981445,
+            "Fixtures": [
+                {
+                    "FixID": 1,
+                    "VirtPos": {
+                        "X": 3,
+                        "Y": 3,
+                        "Z": 3
+                    }
+                }
+            ]
+        })";
+        APU_PF_HEADER* h = (APU_PF_HEADER*)data;
+        h->type = APU_PACKET_TYPE::APU_PACKET_ADD_CONFIG;
+        h->mask = APU_CONFIG_TYPE::APU_CONFIG_FIXTURE;
+        h->len = strlen(reqJson);
+        memcpy(data + sizeof(APU_PF_HEADER), reqJson, h->len);
+        send(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
+        printf("%s completed!\n", __func__);
         return 0;
     }
     int ReqHeartBeat(PPS_SOCKET sock)
@@ -304,9 +378,22 @@ public:
                 if (Timeout(clientList.at(s).hbtime, TIMER_HEART_BEAT))
                 {
                     //ReqHeartBeat(clientSocket);
-                    ReqGlobal(clientSocket);
-                    ReqAnchor(clientSocket);
-                    ReqTag(clientSocket);
+                    static int gId = 6;
+                    if (gId == 0)
+                        ReqGlobal(clientSocket);
+                    if (gId == 1)
+                        ReqAnchor(clientSocket);
+                    if (gId == 2)
+                        ReqTag(clientSocket);
+                    if (gId == 3)
+                        ReqFixture(clientSocket);
+                    if (gId == 4)
+                        ReqFollow(clientSocket);
+                    if (gId == 5)
+                        ReqAddFixture(clientSocket);
+                    //if (gId == 6)
+                    //    ReqUpdateMode(clientSocket);
+                    gId = (gId + 1) % 10;
                 }
             }
 
