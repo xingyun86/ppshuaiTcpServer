@@ -23,12 +23,16 @@ int do_recv_groupcast(const char* ip, const char * group_ip="239.2.2.2", const u
 	int recvSockAddrSize = sizeof(recvSockAddr);
 	sockaddr_in nameSockAddr = { 0 };
 	int nameSockAddrSize = sizeof(nameSockAddr);
+	ip_mreq multiCastMreq = { 0 };
+	int multiCastMreqSize = sizeof(multiCastMreq);
+
 	nameSockAddr.sin_family = AF_INET;
-	//nameSockAddr.sin_addr.s_addr = INADDR_ANY;
 	nameSockAddr.sin_addr.s_addr = inet_addr(ip);
 	nameSockAddr.sin_port = htons(port);
 
-	nOptVal = 255; // TTL[0,255]
+	multiCastMreq.imr_interface.s_addr = inet_addr(ip);
+	multiCastMreq.imr_multiaddr.s_addr = inet_addr(group_ip);
+
 	///////////////////////////////////////////////////////////
 	//0 restricted to the same host
 	//1 restricted to the same subnet
@@ -37,6 +41,7 @@ int do_recv_groupcast(const char* ip, const char * group_ip="239.2.2.2", const u
 	//128 restricted to the same continent
 	//255 unrestricted
 	///////////////////////////////////////////////////////////
+	nOptVal = 255; // TTL[0,255]
 	nRet = setsockopt(sock, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&nOptVal, sizeof(nOptVal));
 	if (nRet != 0) {
 		printf("setsockopt fail:%d(%s)", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE));
@@ -55,24 +60,19 @@ int do_recv_groupcast(const char* ip, const char * group_ip="239.2.2.2", const u
 		return -1;
 	}
 
+	// 加入组播
+	nRet = setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&multiCastMreq, multiCastMreqSize);
+	if (nRet != 0) {
+		printf("setsockopt fail:%d(%s)", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE));
+		return -1;
+	}
+
 	nRet = bind(sock, (sockaddr*)&nameSockAddr, (int)nameSockAddrSize);
 	if (nRet != 0) {
 		printf("bind fail:%d(%s)", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE));
 		return -1;
 	}
 	printf("socket:%d bind success\n", sock);
-
-	// 加入组播  
-	ip_mreq multiCast;
-	int multiCastSize = sizeof(multiCast);
-	//multiCast.imr_interface.s_addr = INADDR_ANY;
-	multiCast.imr_interface.s_addr = inet_addr(ip);
-	multiCast.imr_multiaddr.s_addr = inet_addr(group_ip);
-	nRet = setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&multiCast, multiCastSize);
-	if (nRet != 0) {
-		printf("setsockopt fail:%d(%s)", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE));
-		return -1;
-	}
 
 	printf("udp group start\n");
 	uint32_t send_size = WindowSocket::Inst()->nSendDataSize;
@@ -87,7 +87,9 @@ int do_recv_groupcast(const char* ip, const char * group_ip="239.2.2.2", const u
 			printf("recvfrom fail:%d(%s)", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE));
 			return -1;
 		}
-		printf("recv data:%s\n", (char*)recv_data);
+		char ip[16] = { 0 };
+		PPS_INET_NTOA_IPV4(ip, sizeof(ip) / sizeof(*ip), recvSockAddr.sin_addr);
+		printf("[%s]recv data:%s\n", ip, (char*)recv_data);
 	}
 	delete[]recv_data;
 	delete[]send_data;

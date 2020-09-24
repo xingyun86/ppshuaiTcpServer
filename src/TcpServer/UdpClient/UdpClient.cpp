@@ -12,14 +12,23 @@ int do_send_groupcast(const char* ip, const char* group_ip = "239.2.2.2", const 
 	u_long nOptVal = 1;
 	sockaddr_in nameSockAddr = { 0 };
 	int nameSockAddrSize = sizeof(nameSockAddr);
+	sockaddr_in multiCastSockAddr = { 0 };
+	int multiCastSockAddrSize = sizeof(multiCastSockAddr);
 	PPS_SOCKET sock = PPS_INVALID_SOCKET;
+
+	nameSockAddr.sin_family = AF_INET;
+	nameSockAddr.sin_addr.s_addr = inet_addr(ip);
+	nameSockAddr.sin_port = htons(port);
+
+	multiCastSockAddr.sin_addr.s_addr = inet_addr(group_ip);
+	multiCastSockAddr.sin_family = AF_INET;
+	multiCastSockAddr.sin_port = htons(port);
 
 	sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
 	if (sock == PPS_INVALID_SOCKET) {
 		printf("Error at socket(): %d,%s\n", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE).c_str());
 		return 1;
 	}
-	nOptVal = 255; // TTL[0,255]
 	///////////////////////////////////////////////////////////
 	//0 restricted to the same host
 	//1 restricted to the same subnet
@@ -28,6 +37,7 @@ int do_send_groupcast(const char* ip, const char* group_ip = "239.2.2.2", const 
 	//128 restricted to the same continent
 	//255 unrestricted
 	///////////////////////////////////////////////////////////
+	nOptVal = 255; // TTL[0,255]
 	nRet = setsockopt(sock, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&nOptVal, sizeof(nOptVal));
 	if (nRet != 0) {
 		printf("setsockopt fail:%d(%s)", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE));
@@ -45,10 +55,19 @@ int do_send_groupcast(const char* ip, const char* group_ip = "239.2.2.2", const 
 		printf("setsockopt fail:%d(%s)", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE));
 		return -1;
 	}
+	
+	nRet = setsockopt(sock, IPPROTO_IP, IP_MULTICAST_IF, (char*)&multiCastSockAddr.sin_addr, sizeof(multiCastSockAddr.sin_addr));
+	if (nRet != 0) {
+		printf("setsockopt fail:%d(%s)", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE));
+		return -1;
+	}
 
-	nameSockAddr.sin_addr.s_addr = inet_addr(group_ip);
-	nameSockAddr.sin_family = AF_INET;
-	nameSockAddr.sin_port = htons(port);
+	nRet = bind(sock, (sockaddr*)&nameSockAddr, (int)nameSockAddrSize);
+	if (nRet != 0) {
+		printf("bind fail:%d(%s)", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE));
+		return -1;
+	}
+	printf("socket:%d bind success\n", sock);
 
 	uint32_t send_size = WindowSocket::Inst()->nSendDataSize;
 	uint8_t* send_data = new uint8_t[send_size]();
@@ -57,13 +76,13 @@ int do_send_groupcast(const char* ip, const char* group_ip = "239.2.2.2", const 
 	int iIdx = 0;
 	while (1)
 	{
-		sprintf((char *)send_data, "udp send group data:%d", iIdx++);
-		nRet = sendto(sock, (char*)send_data, strlen((char*)send_data) + 1, 0, (sockaddr*)&nameSockAddr, (int)nameSockAddrSize);
+		sprintf((char *)send_data, "%d", iIdx++);
+		nRet = sendto(sock, (char*)send_data, strlen((char*)send_data) + 1, 0, (sockaddr*)&multiCastSockAddr, (int)multiCastSockAddrSize);
 		if (nRet <= 0) {
 			printf("send fail:%d(%s)", NET_ERR_CODE, NET_ERR_STR(NET_ERR_CODE));
 		}
 		else {
-			printf("send data:%s\n", (char*)send_data);
+			printf("[%s] send data:%s\n", ip, (char*)send_data);
 		}
 		PPS_Sleep(500);
 	}
