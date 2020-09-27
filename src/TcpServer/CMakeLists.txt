@@ -12,3 +12,4 @@ add_subdirectory ("UdpServer")
 add_subdirectory ("UdpClient")
 
 add_subdirectory ("TcpClientTest")
+add_subdirectory ("TcpConnectCheck")
