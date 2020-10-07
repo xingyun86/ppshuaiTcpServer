@@ -328,8 +328,32 @@ public:
         printf("Connect to server ok!\n");
 
         maxSocket = clientSocket;
-
-        while (true)
+        bool bLoop = true;
+        std::thread([&bLoop, clientSocket]() {
+            printf("h-help,0-Exit,1-GetGalobal,2-GetAnchor,3-GetTag,4-GetFixture,5-GetFollow,6-AddFixture\n");
+            while (bLoop)
+            {
+                char ch = getchar();
+                if (ch == 'h' || ch == '\n' || (ch >= '0' && ch <= '9'))
+                {
+                    switch (ch)
+                    {
+                    case '\n':
+                    case 'h':
+                        printf("h-help,0-Exit,1-GetGalobal,2-GetAnchor,3-GetTag,4-GetFixture,5-GetFollow,6-AddFixture\n");                        
+                        break;
+                    case '0':bLoop = false; break;
+                    case '1':TcpClient::Inst()->ReqGlobal(clientSocket); break;
+                    case '2':TcpClient::Inst()->ReqAnchor(clientSocket); break;
+                    case '3':TcpClient::Inst()->ReqTag(clientSocket); break;
+                    case '4':TcpClient::Inst()->ReqFixture(clientSocket); break;
+                    case '5':TcpClient::Inst()->ReqFollow(clientSocket); break;
+                    case '6':TcpClient::Inst()->ReqAddFixture(clientSocket); break;
+                    }
+                }
+            }
+            }).detach();
+        while (bLoop)
         {
             // 清理集合
             FD_ZERO(&readfds);
@@ -378,7 +402,7 @@ public:
                 if (Timeout(clientList.at(s).hbtime, TIMER_HEART_BEAT))
                 {
                     //ReqHeartBeat(clientSocket);
-                    static int gId = 6;
+                    /*static int gId = 6;
                     if (gId == 0)
                         ReqGlobal(clientSocket);
                     if (gId == 1)
@@ -393,7 +417,7 @@ public:
                         ReqAddFixture(clientSocket);
                     //if (gId == 6)
                     //    ReqUpdateMode(clientSocket);
-                    gId = (gId + 1) % 10;
+                    gId = (gId + 1) % 10;*/
                 }
             }
 
@@ -404,8 +428,6 @@ public:
         PPS_CloseSocket(clientSocket);
 
         printf("client exited, task completed!\n");
-
-        getchar();
 
         return 0;
     }
