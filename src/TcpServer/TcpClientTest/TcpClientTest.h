@@ -50,6 +50,7 @@ typedef struct
     uint32_t len;
 }APU_PF_HEADER;
 
+#define MY_SEND(s,buf,len,flags) printf("[%s:%d]%d\n",__func__,__LINE__,send(s,buf,len,flags))
 class TcpClient {
     std::unordered_map<PPS_SOCKET, SockData> clientList;
     int ReqGlobal(PPS_SOCKET sock)
@@ -61,7 +62,7 @@ class TcpClient {
         h->mask = APU_CONFIG_TYPE::APU_CONFIG_GLOBAL;
         h->len = strlen(reqJson);
         memcpy(data+ sizeof(APU_PF_HEADER), reqJson, h->len);
-        send(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
+        MY_SEND(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
         clientList.at(sock).hbtime = time(nullptr);
         printf("Request Heartbeat %lld\n", clientList.at(sock).hbtime);
         return 0;
@@ -75,7 +76,7 @@ class TcpClient {
         h->mask = APU_CONFIG_TYPE::APU_CONFIG_ANCHOR;
         h->len = strlen(reqJson);
         memcpy(data + sizeof(APU_PF_HEADER), reqJson, h->len);
-        send(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
+        MY_SEND(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
         printf("%s completed!\n", __func__);
         return 0;
     }
@@ -88,7 +89,7 @@ class TcpClient {
         h->mask = APU_CONFIG_TYPE::APU_CONFIG_TAG;
         h->len = strlen(reqJson);
         memcpy(data + sizeof(APU_PF_HEADER), reqJson, h->len);
-        send(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
+        MY_SEND(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
         printf("%s completed!\n", __func__);
         return 0;
     }
@@ -101,7 +102,7 @@ class TcpClient {
         h->mask = APU_CONFIG_TYPE::APU_CONFIG_FIXTURE;
         h->len = strlen(reqJson);
         memcpy(data + sizeof(APU_PF_HEADER), reqJson, h->len);
-        send(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
+        MY_SEND(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
         printf("%s completed!\n", __func__);
         return 0;
     }
@@ -114,7 +115,7 @@ class TcpClient {
         h->mask = APU_CONFIG_TYPE::APU_CONFIG_FOLLOW;
         h->len = strlen(reqJson);
         memcpy(data + sizeof(APU_PF_HEADER), reqJson, h->len);
-        send(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
+        MY_SEND(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
         printf("%s completed!\n", __func__);
         return 0;
     }
@@ -127,7 +128,7 @@ class TcpClient {
         h->mask = APU_CONFIG_TYPE::APU_CONFIG_GLOBAL;
         h->len = strlen(reqJson);
         memcpy(data + sizeof(APU_PF_HEADER), reqJson, h->len);
-        send(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
+        MY_SEND(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
         printf("%s completed!\n", __func__);
         return 0;
     }
@@ -140,7 +141,7 @@ class TcpClient {
         h->mask = APU_CONFIG_TYPE::APU_CONFIG_GLOBAL;
         h->len = strlen(reqJson);
         memcpy(data + sizeof(APU_PF_HEADER), reqJson, h->len);
-        send(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
+        MY_SEND(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
         printf("%s completed!\n", __func__);
         return 0;
     }
@@ -158,7 +159,7 @@ class TcpClient {
             "TagID": 1346981445,
             "Fixtures": [
                 {
-                    "FixID": 1,
+                    "FixID": 11,
                     "VirtPos": {
                         "X": 3,
                         "Y": 3,
@@ -172,14 +173,69 @@ class TcpClient {
         h->mask = APU_CONFIG_TYPE::APU_CONFIG_FIXTURE;
         h->len = strlen(reqJson);
         memcpy(data + sizeof(APU_PF_HEADER), reqJson, h->len);
-        send(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
+        MY_SEND(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
+        printf("%s completed!\n", __func__);
+        return 0;
+    }
+    int ReqDelFixture(PPS_SOCKET sock)
+    {
+        /*if (addFixture)
+        {
+            return 0;
+        }
+        addFixture = true;*/
+        char data[4096] = { 0 };
+        const char* reqJson = R"({
+            "seq":"DelFixture1",
+            "PosList": [1,2]
+        })";
+        APU_PF_HEADER* h = (APU_PF_HEADER*)data;
+        h->type = APU_PACKET_TYPE::APU_PACKET_DEL_CONFIG;
+        h->mask = APU_CONFIG_TYPE::APU_CONFIG_FIXTURE;
+        h->len = strlen(reqJson);
+        memcpy(data + sizeof(APU_PF_HEADER), reqJson, h->len);
+        MY_SEND(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
+        printf("%s completed!\n", __func__);
+        return 0;
+    }
+    int ReqAddFollow(PPS_SOCKET sock)
+    {
+        char data[4096] = { 0 };
+        const char* reqJson = R"({
+            "seq":"AddFollow1",
+            "TagID": 1,
+            "FixID": 1,
+            "CaliMode":1
+        })";
+        APU_PF_HEADER* h = (APU_PF_HEADER*)data;
+        h->type = APU_PACKET_TYPE::APU_PACKET_ADD_CONFIG;
+        h->mask = APU_CONFIG_TYPE::APU_CONFIG_FOLLOW;
+        h->len = strlen(reqJson);
+        memcpy(data + sizeof(APU_PF_HEADER), reqJson, h->len);
+        MY_SEND(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
+        printf("%s completed!\n", __func__);
+        return 0;
+    }
+    int ReqDelFollow(PPS_SOCKET sock)
+    {
+        char data[4096] = { 0 };
+        const char* reqJson = R"({
+            "seq":"DelFollow1",
+            "FollowID": 1
+        })";
+        APU_PF_HEADER* h = (APU_PF_HEADER*)data;
+        h->type = APU_PACKET_TYPE::APU_PACKET_DEL_CONFIG;
+        h->mask = APU_CONFIG_TYPE::APU_CONFIG_FOLLOW;
+        h->len = strlen(reqJson);
+        memcpy(data + sizeof(APU_PF_HEADER), reqJson, h->len);
+        MY_SEND(sock, (const char*)data, sizeof(APU_PF_HEADER) + h->len, 0);
         printf("%s completed!\n", __func__);
         return 0;
     }
     int ReqHeartBeat(PPS_SOCKET sock)
     {
         std::string message = "PING\r\n";
-        send(sock, (const char*)message.data(), message.size(), 0);
+        MY_SEND(sock, (const char*)message.data(), message.size(), 0);
         clientList.at(sock).hbtime = time(nullptr);
         printf("Request Heartbeat %lld\n", clientList.at(sock).hbtime);
         return 0;
@@ -187,7 +243,7 @@ class TcpClient {
     int RespHeartBeat(PPS_SOCKET sock)
     {
         std::string message = "PONG\r\n";
-        send(sock, (const char*)message.data(), message.size(), 0);
+        MY_SEND(sock, (const char*)message.data(), message.size(), 0);
         clientList.at(sock).hbtime = time(nullptr);
         printf("Request Heartbeat %lld\n", clientList.at(sock).hbtime);
         return 0;
@@ -343,17 +399,17 @@ public:
         maxSocket = clientSocket;
         bool bLoop = true;
         std::thread([&bLoop, clientSocket]() {
-            printf("h-help,0-Exit,1-GetGalobal,2-GetAnchor,3-GetTag,4-GetFixture,5-GetFollow,6-AddFixture\n");
+            printf("h-help,0-Exit\n1-GetGalobal,2-GetAnchor,3-GetTag,4-GetFixture,5-GetFollow,6-UpdateMode1\n7-AddFixture,8-DelFixture,9-AddFixture,a-DelFixture\n");
             while (bLoop)
             {
                 char ch = getchar();
-                if (ch == 'h' || ch == '\n' || (ch >= '0' && ch <= '9'))
+                if (ch == 'h' || ch == '\n' || (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z'))
                 {
                     switch (ch)
                     {
                     case '\n':
                     case 'h':
-                        printf("h-help,0-Exit,1-GetGalobal,2-GetAnchor,3-GetTag,4-GetFixture,5-GetFollow,6-AddFixture,7-UpdateMode1\n");                        
+                        printf("h-help,0-Exit\n1-GetGalobal,2-GetAnchor,3-GetTag,4-GetFixture,5-GetFollow,6-UpdateMode1\n7-AddFixture,8-DelFixture,9-AddFixture,a-DelFixture\n");                        
                         break;
                     case '0':bLoop = false; break;
                     case '1':TcpClient::Inst()->ReqGlobal(clientSocket); break;
@@ -361,8 +417,11 @@ public:
                     case '3':TcpClient::Inst()->ReqTag(clientSocket); break;
                     case '4':TcpClient::Inst()->ReqFixture(clientSocket); break;
                     case '5':TcpClient::Inst()->ReqFollow(clientSocket); break;
-                    case '6':TcpClient::Inst()->ReqAddFixture(clientSocket); break;
-                    case '7':TcpClient::Inst()->ReqUpdateMode1(clientSocket); break;
+                    case '6':TcpClient::Inst()->ReqUpdateMode1(clientSocket); break;
+                    case '7':TcpClient::Inst()->ReqAddFixture(clientSocket); break;
+                    case '8':TcpClient::Inst()->ReqDelFixture(clientSocket); break;
+                    case '9':TcpClient::Inst()->ReqAddFollow(clientSocket); break;
+                    case 'a':TcpClient::Inst()->ReqDelFollow(clientSocket); break;
                     }
                 }
             }
