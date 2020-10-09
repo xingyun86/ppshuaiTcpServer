@@ -144,14 +144,14 @@ class TcpClient {
         printf("%s completed!\n", __func__);
         return 0;
     }
-    bool addFixture = false;
+    //bool addFixture = false;
     int ReqAddFixture(PPS_SOCKET sock)
     {
-        if (addFixture)
+        /*if (addFixture)
         {
             return 0;
         }
-        addFixture = true;
+        addFixture = true;*/
         char data[4096] = { 0 };
         const char* reqJson = R"({
             "seq":"AddFixture1",
