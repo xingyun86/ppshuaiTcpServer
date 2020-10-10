@@ -165,6 +165,78 @@ class TcpClient {
                         "Y": 3,
                         "Z": 3
                     }
+                },
+                {
+                    "FixID": 12,
+                    "VirtPos": {
+                        "X": 3,
+                        "Y": 3,
+                        "Z": 3
+                    }
+                },
+                {
+                    "FixID": 13,
+                    "VirtPos": {
+                        "X": 3,
+                        "Y": 3,
+                        "Z": 3
+                    }
+                },
+                {
+                    "FixID": 14,
+                    "VirtPos": {
+                        "X": 3,
+                        "Y": 3,
+                        "Z": 3
+                    }
+                },
+                {
+                    "FixID": 15,
+                    "VirtPos": {
+                        "X": 3,
+                        "Y": 3,
+                        "Z": 3
+                    }
+                },
+                {
+                    "FixID": 16,
+                    "VirtPos": {
+                        "X": 3,
+                        "Y": 3,
+                        "Z": 3
+                    }
+                },
+                {
+                    "FixID": 17,
+                    "VirtPos": {
+                        "X": 3,
+                        "Y": 3,
+                        "Z": 3
+                    }
+                },
+                {
+                    "FixID": 18,
+                    "VirtPos": {
+                        "X": 3,
+                        "Y": 3,
+                        "Z": 3
+                    }
+                },
+                {
+                    "FixID": 19,
+                    "VirtPos": {
+                        "X": 3,
+                        "Y": 3,
+                        "Z": 3
+                    }
+                },
+                {
+                    "FixID": 20,
+                    "VirtPos": {
+                        "X": 3,
+                        "Y": 3,
+                        "Z": 3
+                    }
                 }
             ]
         })";
@@ -399,7 +471,7 @@ public:
         maxSocket = clientSocket;
         bool bLoop = true;
         std::thread([&bLoop, clientSocket]() {
-            printf("h-help,0-Exit\n1-GetGalobal,2-GetAnchor,3-GetTag,4-GetFixture,5-GetFollow,6-UpdateMode1\n7-AddFixture,8-DelFixture,9-AddFixture,a-DelFixture\n");
+            printf("h-help,0-Exit\n1-GetGalobal,2-GetAnchor,3-GetTag,4-GetFixture,5-GetFollow,6-UpdateMode1\n7-AddFixture,8-DelFixture,9-AddFollow,a-DelFollow\n");
             while (bLoop)
             {
                 char ch = getchar();
@@ -409,7 +481,7 @@ public:
                     {
                     case '\n':
                     case 'h':
-                        printf("h-help,0-Exit\n1-GetGalobal,2-GetAnchor,3-GetTag,4-GetFixture,5-GetFollow,6-UpdateMode1\n7-AddFixture,8-DelFixture,9-AddFixture,a-DelFixture\n");                        
+                        printf("h-help,0-Exit\n1-GetGalobal,2-GetAnchor,3-GetTag,4-GetFixture,5-GetFollow,6-UpdateMode1\n7-AddFixture,8-DelFixture,9-AddFollow,a-DelFollow\n");                        
                         break;
                     case '0':bLoop = false; break;
                     case '1':TcpClient::Inst()->ReqGlobal(clientSocket); break;
