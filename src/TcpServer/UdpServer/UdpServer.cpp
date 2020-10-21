@@ -5,7 +5,8 @@
 
 #include <thread>
 #include <vector>
-
+uint32_t nSendDataSize = 102400;
+uint32_t nRecvDataSize = 102400;
 int do_recv_groupcast(const char* ip, const char * group_ip="239.2.2.2", const uint16_t port = 10101)
 {
 	int nRet = 0;
@@ -75,9 +76,9 @@ int do_recv_groupcast(const char* ip, const char * group_ip="239.2.2.2", const u
 	printf("socket:%d bind success\n", sock);
 
 	printf("udp group start\n");
-	uint32_t send_size = WindowSocket::Inst()->nSendDataSize;
+	uint32_t send_size = nSendDataSize;
 	uint8_t* send_data = new uint8_t[send_size]();
-	uint32_t recv_size = WindowSocket::Inst()->nRecvDataSize;
+	uint32_t recv_size = nRecvDataSize;
 	uint8_t* recv_data = new uint8_t[recv_size]();
 	while (true)
 	{
@@ -88,8 +89,8 @@ int do_recv_groupcast(const char* ip, const char * group_ip="239.2.2.2", const u
 			return -1;
 		}
 		char ip[16] = { 0 };
-		PPS_INET_NTOA_IPV4(ip, sizeof(ip) / sizeof(*ip), recvSockAddr.sin_addr);
-		printf("[%s]recv data:%s\n", ip, (char*)recv_data);
+		PPS_INET_NTOA_IPV4(ip, sizeof(ip) / sizeof(*ip), &recvSockAddr.sin_addr);
+		printf("[%s]recv data:(%d)%s\n", ip, nRet, (char*)recv_data);
 	}
 	delete[]recv_data;
 	delete[]send_data;
@@ -120,9 +121,9 @@ int do_recv_broadcast(const char* ip, const uint16_t port = 0x1936)
 	//从服务器接收数据报
 	printf("Recving a datagram from the sender...\n");
 
-	uint32_t send_size = WindowSocket::Inst()->nSendDataSize;
+	uint32_t send_size = nSendDataSize;
 	uint8_t* send_data = new uint8_t[send_size]();
-	uint32_t recv_size = WindowSocket::Inst()->nRecvDataSize;
+	uint32_t recv_size = nRecvDataSize;
 	uint8_t* recv_data = new uint8_t[recv_size]();
 	int i = 0;
 	int iMax = 100;
@@ -152,16 +153,16 @@ int run()
 	{
 		while ((hostinfo->h_addr_list != nullptr) && *(hostinfo->h_addr_list) != nullptr) {
 			char ip[16] = { 0 };
-			PPS_INET_NTOA_IPV4(ip, sizeof(ip) / sizeof(*ip), *(struct in_addr*)(*hostinfo->h_addr_list));
+			PPS_INET_NTOA_IPV4(ip, sizeof(ip) / sizeof(*ip), &*(struct in_addr*)(*hostinfo->h_addr_list));
 			std::cout << "ip=" << ip << std::endl;
 			task_list.push_back(std::make_shared<std::thread>([](void* p)
 				{
 					char ip[16] = { 0 };
 					struct in_addr _in_addr = { 0 };
 					_in_addr.s_addr = (unsigned long)p;
-					PPS_INET_NTOA_IPV4(ip, sizeof(ip) / sizeof(*ip), _in_addr);
+					PPS_INET_NTOA_IPV4(ip, sizeof(ip) / sizeof(*ip), &_in_addr);
 					//do_recv_broadcast(ip);
-					do_recv_groupcast(ip);
+					do_recv_groupcast(ip,"224.0.2.101",9981);
 				}, (void*)((struct in_addr*)(*hostinfo->h_addr_list))->s_addr)
 			);
 			std::this_thread::sleep_for(std::chrono::milliseconds(10));

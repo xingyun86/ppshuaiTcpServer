@@ -5,7 +5,8 @@
 
 #include <thread>
 #include <vector>
-
+uint32_t nSendDataSize = 102400;
+uint32_t nRecvDataSize = 102400;
 int do_send_groupcast(const char* ip, const char* group_ip = "239.2.2.2", const uint16_t port = 10101)
 {
 	int nRet = 0;
@@ -69,9 +70,9 @@ int do_send_groupcast(const char* ip, const char* group_ip = "239.2.2.2", const 
 	}
 	printf("socket:%d bind success\n", sock);
 
-	uint32_t send_size = WindowSocket::Inst()->nSendDataSize;
+	uint32_t send_size = nSendDataSize;
 	uint8_t* send_data = new uint8_t[send_size]();
-	uint32_t recv_size = WindowSocket::Inst()->nRecvDataSize;
+	uint32_t recv_size = nRecvDataSize;
 	uint8_t* recv_data = new uint8_t[recv_size]();
 	int iIdx = 0;
 	while (1)
@@ -131,9 +132,9 @@ int do_send_broadcast(const char * ip, uint16_t port=0x1936)
 	//向服务器发送数据报
 	printf("Sending a datagram to the receiver...\n");
 
-	uint32_t send_size = WindowSocket::Inst()->nSendDataSize;
+	uint32_t send_size = nSendDataSize;
 	uint8_t* send_data = new uint8_t[send_size]();
-	uint32_t recv_size = WindowSocket::Inst()->nRecvDataSize;
+	uint32_t recv_size = nRecvDataSize;
 	uint8_t* recv_data = new uint8_t[recv_size]();
 	int i = 0;
 	int iMax = 10;
@@ -165,14 +166,14 @@ int run()
 	{
 		while ((hostinfo->h_addr_list != nullptr) && *(hostinfo->h_addr_list) != nullptr) {
 			char ip[16] = { 0 };
-			PPS_INET_NTOA_IPV4(ip, sizeof(ip)/sizeof(*ip), *(struct in_addr*)(*hostinfo->h_addr_list));
+			PPS_INET_NTOA_IPV4(ip, sizeof(ip)/sizeof(*ip), &*(struct in_addr*)(*hostinfo->h_addr_list));
 			std::cout << "ip=" << ip << std::endl;
 			task_list.push_back(std::move(std::thread([](void* p)
 				{
 					char ip[16] = { 0 };
 					struct in_addr _in_addr = { 0 };
 					_in_addr.s_addr = (unsigned long)p;
-					PPS_INET_NTOA_IPV4(ip, sizeof(ip) / sizeof(*ip), _in_addr);
+					PPS_INET_NTOA_IPV4(ip, sizeof(ip) / sizeof(*ip), &_in_addr);
 					//do_send_broadcast(ip);
 					do_send_groupcast(ip);
 				}, (void *)((struct in_addr*)(*hostinfo->h_addr_list))->s_addr)

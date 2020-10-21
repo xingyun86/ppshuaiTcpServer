@@ -463,7 +463,7 @@ public:
             }
         }
         
-        clientList.emplace(clientSocket, SockData(PPS_INET_NTOA_IPV4(ip, sizeof(ip)/sizeof(*ip), nameSockAddr.sin_addr), ntohs(nameSockAddr.sin_port)));
+        clientList.emplace(clientSocket, SockData(PPS_INET_NTOA_IPV4(ip, sizeof(ip)/sizeof(*ip), &nameSockAddr.sin_addr), ntohs(nameSockAddr.sin_port)));
         clientList.at(clientSocket).hbtime = time(nullptr);
 
         printf("Connect to server ok!\n");
