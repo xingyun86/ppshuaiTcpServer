@@ -1,5 +1,6 @@
 
 #ifdef _MSC_VER
+#define  _WINSOCK_DEPRECATED_NO_WARNINGS 
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #define PPS_SOCKET SOCKET
@@ -16,11 +17,15 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <netdb.h>
+#include <unistd.h>
+#include <ifaddrs.h>
 #define PPS_SOCKET int
 #define PPS_SOCKLEN_T socklen_t
 #define PPS_SOCKOPT_T void
@@ -35,24 +40,8 @@
 
 #include <string>
 #include <thread>
-#ifdef _MSC_VER
-#define  _WINSOCK_DEPRECATED_NO_WARNINGS 
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#pragma comment(lib,"ws2_32.lib")
-#else
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <arpa/inet.h>
-#include <unistd.h>
-#include <ifaddrs.h>
-#endif
-
 #include <vector>
+
 class SockUtil {
 #define PPS_INET_NTOA_IPV4(IPv4,Ipv4Len,Addr) inet_ntop(AF_INET,Addr,IPv4,Ipv4Len)
 #define PPS_INET_NTOA_IPV6(IPv6,Ipv6Len,Addr) inet_ntop(AF_INET6,Addr,IPv6,Ipv6Len)
